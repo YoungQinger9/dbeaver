@@ -67,7 +67,7 @@ public final class YashanDBUtils {
 		return dataSource.isAdminVisible() ? "DBA_" + viewName : "ALL_" + viewName;
 	}
 
-	private static String preCheckSourceObject(YashanDBSourceObject sourceObject, DBRProgressMonitor monitor) {
+	private static String preCheckSourceObject(YashanDBSourceObject sourceObject) {
 		if (sourceObject.getSourceType().isCustom()) {
 			log.warn("Can't read source for custom source objects");
 			return DEFAULT_CUSTOM_SOURCE;
@@ -152,7 +152,7 @@ public final class YashanDBUtils {
 
 	public static String getSource(DBRProgressMonitor monitor, YashanDBSourceObject sourceObject, boolean body,
 			boolean insertCreateReplace) throws DBCException {
-		String preCheckResult = preCheckSourceObject(sourceObject, monitor);
+		String preCheckResult = preCheckSourceObject(sourceObject);
 		if (preCheckResult != null) {
 			return preCheckResult;
 		}
