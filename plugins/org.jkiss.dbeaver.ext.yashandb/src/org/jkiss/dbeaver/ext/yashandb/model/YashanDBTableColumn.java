@@ -61,37 +61,36 @@ public class YashanDBTableColumn extends JDBCTableColumn<YashanDBTableBase>
 		setName(JDBCUtils.safeGetString(dbResult, "COLUMN_NAME"));
 		setOrdinalPosition(JDBCUtils.safeGetInt(dbResult, "COLUMN_ID"));
 		this.typeName = JDBCUtils.safeGetString(dbResult, "DATA_TYPE");
-		this.type = YashanDBDataType.resolveDataType(monitor, getDataSource(),
-				JDBCUtils.safeGetString(dbResult, "DATA_TYPE_OWNER"), this.typeName);
-		if (this.type != null) {
-			this.typeName = type.getFullyQualifiedName(DBPEvaluationContext.DDL);
-			this.valueType = type.getTypeID();
-		}
+
+		resolveAndUpdateDataType(monitor, dbResult);
+
 		setMaxLength(JDBCUtils.safeGetLong(dbResult, "DATA_LENGTH"));
 		setRequired(!"Y".equals(JDBCUtils.safeGetString(dbResult, "NULLABLE")));
-		this.scale = JDBCUtils.safeGetInteger(dbResult, "DATA_SCALE");
-		if (this.scale == null || this.scale < 0) {
-			if (this.type != null && this.type.getScale() != null) {
-				this.scale = this.type.getScale();
-			}
-		}
 
-		if (typeName.equals("BIT")) {
+		if ("BIT".equals(typeName)) {
 			setPrecision(CommonUtils.toInt(JDBCUtils.safeGetLong(dbResult, "DATA_LENGTH")));
 		} else {
 			setPrecision(JDBCUtils.safeGetInteger(dbResult, "DATA_PRECISION"));
 		}
 
+		resolveAndUpdateDataType(monitor, dbResult);
+
+		this.scale = JDBCUtils.safeGetInteger(dbResult, "DATA_SCALE");
+		updateScaleFromType();
+	}
+
+	private void resolveAndUpdateDataType(DBRProgressMonitor monitor, ResultSet dbResult) {
 		this.type = YashanDBDataType.resolveDataType(monitor, getDataSource(),
 				JDBCUtils.safeGetString(dbResult, "DATA_TYPE_OWNER"), this.typeName);
 		if (this.type != null) {
 			this.typeName = type.getFullyQualifiedName(DBPEvaluationContext.DDL);
 			this.valueType = type.getTypeID();
 		}
-		if (this.scale == null || this.scale < 0) {
-			if (this.type != null && this.type.getScale() != null) {
-				this.scale = this.type.getScale();
-			}
+	}
+
+	private void updateScaleFromType() {
+		if ((this.scale == null || this.scale < 0) && this.type != null && this.type.getScale() != null) {
+			this.scale = this.type.getScale();
 		}
 	}
 
