@@ -48,7 +48,7 @@ import java.util.Map;
  */
 public class OracleSessionEditor extends AbstractSessionEditor
 {
-    private DisconnectSessionAction killSessionAction;
+    protected DisconnectSessionAction killSessionAction;
     private DisconnectSessionAction disconnectSessionAction;
 
     public OracleSessionEditor() {
@@ -140,9 +140,9 @@ public class OracleSessionEditor extends AbstractSessionEditor
         };
     }
 
-    private class DisconnectSessionAction extends Action {
+    public class DisconnectSessionAction extends Action {
         private final boolean kill;
-        DisconnectSessionAction(boolean kill)
+        public DisconnectSessionAction(boolean kill)
         {
             super(
                 kill ? OracleUIMessages.editors_oracle_session_editor_title_kill_session : OracleUIMessages.editors_oracle_session_editor_title_disconnect_session,

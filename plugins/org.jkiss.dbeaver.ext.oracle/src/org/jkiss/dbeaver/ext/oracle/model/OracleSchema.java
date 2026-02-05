@@ -16,11 +16,26 @@
  */
 package org.jkiss.dbeaver.ext.oracle.model;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.Log;
-import org.jkiss.dbeaver.model.*;
+import org.jkiss.dbeaver.model.DBPEvaluationContext;
+import org.jkiss.dbeaver.model.DBPObjectStatisticsCollector;
+import org.jkiss.dbeaver.model.DBPRefreshableObject;
+import org.jkiss.dbeaver.model.DBPScriptObject;
+import org.jkiss.dbeaver.model.DBPSystemObject;
+import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.connection.DBPConnectionConfiguration;
 import org.jkiss.dbeaver.model.exec.DBCException;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCPreparedStatement;
@@ -45,11 +60,6 @@ import org.jkiss.dbeaver.model.struct.rdb.DBSSchema;
 import org.jkiss.utils.ArrayUtils;
 import org.jkiss.utils.CommonUtils;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.*;
-import java.util.stream.Collectors;
-
 /**
  * OracleSchema
  */
@@ -69,22 +79,22 @@ public class OracleSchema extends OracleGlobalObject implements
     private boolean synonymsAsChildren = false;
     private boolean sequencesAsChildren = false;
 
-    final public TableCache tableCache = new TableCache();
-    final public ConstraintCache constraintCache = new ConstraintCache();
-    final public ForeignKeyCache foreignKeyCache = new ForeignKeyCache();
+    final private TableCache tableCache = new TableCache();
+    final private ConstraintCache constraintCache = new ConstraintCache(tableCache);
+    final private ForeignKeyCache foreignKeyCache = new ForeignKeyCache(tableCache);
     final public TriggerCache triggerCache = new TriggerCache();
-    final public TableTriggerCache tableTriggerCache = new TableTriggerCache();
-    final public IndexCache indexCache = new IndexCache();
-    final public DataTypeCache dataTypeCache = new DataTypeCache();
+    final private TableTriggerCache tableTriggerCache = new TableTriggerCache(tableCache);
+    final private IndexCache indexCache = new IndexCache(tableCache);
+    final private DataTypeCache dataTypeCache = new DataTypeCache();
     final public SequenceCache sequenceCache = new SequenceCache();
     final public QueueCache queueCache = new QueueCache();
-    final public PackageCache packageCache = new PackageCache();
+    final private PackageCache packageCache = new PackageCache();
     final public SynonymCache synonymCache = new SynonymCache();
     final public DBLinkCache dbLinkCache = new DBLinkCache();
-    final public ProceduresCache proceduresCache = new ProceduresCache();
+    final private ProceduresCache proceduresCache = new ProceduresCache();
     final public JavaCache javaCache = new JavaCache();
     final public JobCache jobCache = new JobCache();
-    final public SchedulerJobCache schedulerJobCache = new SchedulerJobCache();
+    final private SchedulerJobCache schedulerJobCache = new SchedulerJobCache();
     final public SchedulerProgramCache schedulerProgramCache = new SchedulerProgramCache();
     final public RecycleBin recycleBin = new RecycleBin();
     private volatile boolean hasStatistics;
@@ -175,58 +185,90 @@ public class OracleSchema extends OracleGlobalObject implements
     public Collection<OracleTableIndex> getIndexes(DBRProgressMonitor monitor)
         throws DBException
     {
-        return indexCache.getObjects(monitor, this, null);
+        return getIndexCache().getObjects(monitor, this, null);
     }
 
     @Association
     public Collection<? extends OracleTable> getTables(DBRProgressMonitor monitor)
         throws DBException
     {
-        return tableCache.getTypedObjects(monitor, this, OracleTable.class);
+        return getTableCache().getTypedObjects(monitor, this, OracleTable.class);
     }
 
     public OracleTable getTable(DBRProgressMonitor monitor, String name)
         throws DBException
     {
-        return tableCache.getObject(monitor, this, name, OracleTable.class);
+        return getTableCache().getObject(monitor, this, name, OracleTable.class);
     }
 
     @Association
     public Collection<OracleView> getViews(DBRProgressMonitor monitor)
         throws DBException
     {
-        return tableCache.getTypedObjects(monitor, this, OracleView.class);
+        return getTableCache().getTypedObjects(monitor, this, OracleView.class);
     }
 
     public OracleView getView(DBRProgressMonitor monitor, String name)
         throws DBException
     {
-        return tableCache.getObject(monitor, this, name, OracleView.class);
+        return getTableCache().getObject(monitor, this, name, OracleView.class);
     }
 
     @Association
     public Collection<OracleMaterializedView> getMaterializedViews(DBRProgressMonitor monitor)
         throws DBException
     {
-        return tableCache.getTypedObjects(monitor, this, OracleMaterializedView.class);
+        return getTableCache().getTypedObjects(monitor, this, OracleMaterializedView.class);
     }
 
     @Association
     public OracleMaterializedView getMaterializedView(DBRProgressMonitor monitor, String name)
         throws DBException
     {
-        return tableCache.getObject(monitor, this, name, OracleMaterializedView.class);
+        return getTableCache().getObject(monitor, this, name, OracleMaterializedView.class);
     }
 
     public TableCache getTableCache() {
         return tableCache;
     }
+    
+    public ConstraintCache getConstraintCache() {
+		return constraintCache;
+	}
 
+    public ForeignKeyCache getForeignKeyCache() {
+		return foreignKeyCache;
+	}
+    
+    public IndexCache getIndexCache() {
+		return indexCache;
+	}
+    
+    public TableTriggerCache getTableTriggerCache() {
+		return tableTriggerCache;
+	}
+    
+    public DataTypeCache getDataTypeCache() {
+		return dataTypeCache;
+	}
+    
+    public PackageCache getPackageCache() {
+		return packageCache;
+	}
+    
+    public ProceduresCache getProceduresCache() {
+		return proceduresCache;
+	}
+    
+    public SchedulerJobCache getSchedulerJobCache() {
+		return schedulerJobCache;
+	}
+    
     @Association
     public Collection<OracleDataType> getDataTypes(DBRProgressMonitor monitor)
         throws DBException
     {
-        return dataTypeCache.getAllObjects(monitor, this);
+        return getDataTypeCache().getAllObjects(monitor, this);
     }
 
     /**
@@ -239,7 +281,7 @@ public class OracleSchema extends OracleGlobalObject implements
     public OracleDataType getDataType(DBRProgressMonitor monitor, String name)
         throws DBException
     {
-        OracleDataType type = isPublic() ? getTypeBySynonym(monitor, name) : dataTypeCache.getObject(monitor, this, name);
+        OracleDataType type = isPublic() ? getTypeBySynonym(monitor, name) : getDataTypeCache().getObject(monitor, this, name);
         if (type == null) {
             if (!isPublic()) {
                 return getTypeBySynonym(monitor, name);
@@ -278,7 +320,7 @@ public class OracleSchema extends OracleGlobalObject implements
     public Collection<OraclePackage> getPackages(DBRProgressMonitor monitor)
         throws DBException
     {
-        return packageCache.getAllObjects(monitor, this);
+        return getPackageCache().getAllObjects(monitor, this);
     }
 
     @Association
@@ -301,12 +343,12 @@ public class OracleSchema extends OracleGlobalObject implements
     public Collection<OracleProcedureStandalone> getProcedures(DBRProgressMonitor monitor)
         throws DBException
     {
-        return proceduresCache.getAllObjects(monitor, this);
+        return getProceduresCache().getAllObjects(monitor, this);
     }
 
     @Override
     public OracleProcedureStandalone getProcedure(DBRProgressMonitor monitor, String uniqueName) throws DBException {
-        return proceduresCache.getObject(monitor, this, uniqueName);
+        return getProceduresCache().getObject(monitor, this, uniqueName);
     }
 
     @Association
@@ -334,7 +376,7 @@ public class OracleSchema extends OracleGlobalObject implements
     public Collection<OracleTableTrigger> getTableTriggers(DBRProgressMonitor monitor)
             throws DBException
     {
-        return tableTriggerCache.getAllObjects(monitor, this);
+        return getTableTriggerCache().getAllObjects(monitor, this);
     }
 
     @Association
@@ -360,7 +402,7 @@ public class OracleSchema extends OracleGlobalObject implements
     public Collection<OracleSchedulerJob> getSchedulerJobs(DBRProgressMonitor monitor)
             throws DBException
     {
-        return schedulerJobCache.getAllObjects(monitor, this);
+        return getSchedulerJobCache().getAllObjects(monitor, this);
     }
 
     @Association
@@ -384,14 +426,14 @@ public class OracleSchema extends OracleGlobalObject implements
 
     @Override
     public Collection<DBSObject> getChildren(@NotNull DBRProgressMonitor monitor) throws DBException {
-        List<DBSObject> children = new ArrayList<>(tableCache.getAllObjects(monitor, this));
+        List<DBSObject> children = new ArrayList<>(getTableCache().getAllObjects(monitor, this));
         if (synonymsAsChildren) {
             children.addAll(synonymCache.getAllObjects(monitor, this));
         }
         if (sequencesAsChildren) {
             children.addAll(sequenceCache.getAllObjects(monitor, this));
         }
-        children.addAll(packageCache.getAllObjects(monitor, this));
+        children.addAll(getPackageCache().getAllObjects(monitor, this));
         return children;
     }
 
@@ -399,7 +441,7 @@ public class OracleSchema extends OracleGlobalObject implements
     public DBSObject getChild(@NotNull DBRProgressMonitor monitor, @NotNull String childName)
         throws DBException
     {
-        final OracleTableBase table = tableCache.getObject(monitor, this, childName);
+        final OracleTableBase table = getTableCache().getObject(monitor, this, childName);
         if (table != null) {
             return table;
         }
@@ -415,7 +457,7 @@ public class OracleSchema extends OracleGlobalObject implements
                 return sequence;
             }
         }
-        return packageCache.getObject(monitor, this, childName);
+        return getPackageCache().getObject(monitor, this, childName);
     }
 
     @NotNull
@@ -435,18 +477,18 @@ public class OracleSchema extends OracleGlobalObject implements
         throws DBException
     {
         monitor.subTask("Cache tables");
-        tableCache.getAllObjects(monitor, this);
+        getTableCache().getAllObjects(monitor, this);
         if ((scope & STRUCT_ATTRIBUTES) != 0) {
             monitor.subTask("Cache table columns");
-            tableCache.loadChildren(monitor, this, null);
+            getTableCache().loadChildren(monitor, this, null);
         }
         if ((scope & STRUCT_ASSOCIATIONS) != 0) {
             monitor.subTask("Cache table indexes");
-            indexCache.getObjects(monitor, this, null);
+            getIndexCache().getObjects(monitor, this, null);
             monitor.subTask("Cache table constraints");
-            constraintCache.getObjects(monitor, this, null);
-            foreignKeyCache.getObjects(monitor, this, null);
-            tableTriggerCache.getAllObjects(monitor, this);
+            getConstraintCache().getObjects(monitor, this, null);
+            getForeignKeyCache().getObjects(monitor, this, null);
+            getTableTriggerCache().getAllObjects(monitor, this);
         }
     }
 
@@ -455,18 +497,18 @@ public class OracleSchema extends OracleGlobalObject implements
         throws DBException
     {
         hasStatistics = false;
-        tableCache.clearCache();
-        foreignKeyCache.clearCache();
-        constraintCache.clearCache();
-        indexCache.clearCache();
-        packageCache.clearCache();
-        proceduresCache.clearCache();
+        getTableCache().clearCache();
+        getForeignKeyCache().clearCache();
+        getConstraintCache().clearCache();
+        getIndexCache().clearCache();
+        getPackageCache().clearCache();
+        getProceduresCache().clearCache();
         triggerCache.clearCache();
-        tableTriggerCache.clearCache();
-        dataTypeCache.clearCache();
+        getTableTriggerCache().clearCache();
+        getDataTypeCache().clearCache();
         sequenceCache.clearCache();
         synonymCache.clearCache();
-        schedulerJobCache.clearCache();
+        getSchedulerJobCache().clearCache();
         recycleBin.clearCache();
         jobCache.clearCache();
         return this;
@@ -488,7 +530,7 @@ public class OracleSchema extends OracleGlobalObject implements
         this.hasStatistics = false;
     }
 
-    private static OracleTableColumn getTableColumn(JDBCSession session, OracleTableBase parent, ResultSet dbResult,String columnName) throws DBException
+    public static OracleTableColumn getTableColumn(JDBCSession session, OracleTableBase parent, ResultSet dbResult,String columnName) throws DBException
     {
 
         OracleTableColumn tableColumn = columnName == null ? null : parent.getAttribute(session.getProgressMonitor(), columnName);
@@ -536,7 +578,7 @@ public class OracleSchema extends OracleGlobalObject implements
         } catch (SQLException e) {
             throw new DBCException("Error reading table statistics", e);
         } finally {
-            for (OracleTableBase table : tableCache.getCachedObjects()) {
+            for (OracleTableBase table : getTableCache().getCachedObjects()) {
                 if (table instanceof OracleTable && !((OracleTable) table).hasStatistics()) {
                     ((OracleTable) table).setTableSize(0L);
                 }
@@ -637,7 +679,7 @@ public class OracleSchema extends OracleGlobalObject implements
 
     public class TableCache extends JDBCStructLookupCache<OracleSchema, OracleTableBase, OracleTableColumn> {
 
-        TableCache()
+        protected TableCache()
         {
             super(OracleConstants.COLUMN_OBJECT_NAME);
             setListOrderComparator(DBUtils.nameComparator());
@@ -795,8 +837,8 @@ public class OracleSchema extends OracleGlobalObject implements
     /**
      * Constraint cache implementation
      */
-    class ConstraintCache extends JDBCCompositeCache<OracleSchema, OracleTableBase, OracleTableConstraint, OracleTableConstraintColumn> {
-        ConstraintCache()
+    public class ConstraintCache extends JDBCCompositeCache<OracleSchema, OracleTableBase, OracleTableConstraint, OracleTableConstraintColumn> {
+        protected ConstraintCache(TableCache tableCache)
         {
             super(tableCache, OracleTableBase.class, OracleConstants.COL_TABLE_NAME, OracleConstants.COL_CONSTRAINT_NAME);
         }
@@ -958,7 +1000,7 @@ public class OracleSchema extends OracleGlobalObject implements
         }
     }
     
-    static class SpecialPosition {
+    public static class SpecialPosition {
         
         private final String column;
         private final int pos;
@@ -986,7 +1028,7 @@ public class OracleSchema extends OracleGlobalObject implements
          
     }
     
-    private List<SpecialPosition> parsePositions(String value) {
+    public List<SpecialPosition> parsePositions(String value) {
         
         if (value == null) {
             return Collections.emptyList();
@@ -1010,9 +1052,9 @@ public class OracleSchema extends OracleGlobalObject implements
         
     }
 
-    class ForeignKeyCache extends JDBCCompositeCache<OracleSchema, OracleTable, OracleTableForeignKey, OracleTableForeignKeyColumn> {
+    public class ForeignKeyCache extends JDBCCompositeCache<OracleSchema, OracleTable, OracleTableForeignKey, OracleTableForeignKeyColumn> {
                 
-        ForeignKeyCache()
+        protected ForeignKeyCache(TableCache tableCache)
         {
             super(tableCache, OracleTable.class, OracleConstants.COL_TABLE_NAME, OracleConstants.COL_CONSTRAINT_NAME);
            
@@ -1025,7 +1067,7 @@ public class OracleSchema extends OracleGlobalObject implements
                  
             // Cache schema constraints if not table specified
             if (forParent == null) {
-                constraintCache.getAllObjects(monitor, schema);
+                getConstraintCache().getAllObjects(monitor, schema);
             }
             super.loadObjects(monitor, schema, forParent);
         }
@@ -1193,8 +1235,8 @@ public class OracleSchema extends OracleGlobalObject implements
     /**
      * Index cache implementation
      */
-    class IndexCache extends JDBCCompositeCache<OracleSchema, OracleTableBase, OracleTableIndex, OracleTableIndexColumn> {
-        IndexCache()
+    public class IndexCache extends JDBCCompositeCache<OracleSchema, OracleTableBase, OracleTableIndex, OracleTableIndexColumn> {
+        protected IndexCache(TableCache tableCache)
         {
             super(tableCache, OracleTableBase.class, "TABLE_NAME", "INDEX_NAME");
         }
@@ -1280,7 +1322,7 @@ public class OracleSchema extends OracleGlobalObject implements
     /**
      * DataType cache implementation
      */
-    static class DataTypeCache extends JDBCObjectCache<OracleSchema, OracleDataType> {
+    public static class DataTypeCache extends JDBCObjectCache<OracleSchema, OracleDataType> {
         @NotNull
         @Override
         protected JDBCStatement prepareObjectsStatement(@NotNull JDBCSession session, @NotNull OracleSchema owner) throws SQLException
@@ -1348,7 +1390,7 @@ public class OracleSchema extends OracleGlobalObject implements
     /**
      * Procedures cache implementation
      */
-    static class ProceduresCache extends JDBCObjectLookupCache<OracleSchema, OracleProcedureStandalone> {
+    public static class ProceduresCache extends JDBCObjectLookupCache<OracleSchema, OracleProcedureStandalone> {
 
         @NotNull
         @Override
@@ -1374,7 +1416,7 @@ public class OracleSchema extends OracleGlobalObject implements
 
     }
 
-    static class PackageCache extends JDBCObjectCache<OracleSchema, OraclePackage> {
+    public static class PackageCache extends JDBCObjectCache<OracleSchema, OraclePackage> {
 
         @NotNull
         @Override
@@ -1494,8 +1536,8 @@ public class OracleSchema extends OracleGlobalObject implements
         }
     }
 
-    class TableTriggerCache extends JDBCCompositeCache<OracleSchema, OracleTableBase, OracleTableTrigger, OracleTriggerColumn> {
-        protected TableTriggerCache() {
+    public class TableTriggerCache extends JDBCCompositeCache<OracleSchema, OracleTableBase, OracleTableTrigger, OracleTriggerColumn> {
+        protected TableTriggerCache(TableCache tableCache) {
             super(tableCache, OracleTableBase.class, "TABLE_NAME", "TRIGGER_NAME");
         }
 
@@ -1599,7 +1641,7 @@ public class OracleSchema extends OracleGlobalObject implements
 
     }
 
-    static class SchedulerJobCache extends JDBCObjectCache<OracleSchema, OracleSchedulerJob> {
+    public static class SchedulerJobCache extends JDBCObjectCache<OracleSchema, OracleSchedulerJob> {
 
         @NotNull
         @Override

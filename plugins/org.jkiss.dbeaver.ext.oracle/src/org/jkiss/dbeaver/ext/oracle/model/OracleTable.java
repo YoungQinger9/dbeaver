@@ -339,7 +339,7 @@ public class OracleTable extends OracleTablePhysical implements DBPScriptObject,
         // This is dummy implementation
         // Get references from this schema only
         final Collection<OracleTableForeignKey> allForeignKeys =
-            getContainer().foreignKeyCache.getObjects(monitor, getContainer(), null);
+            getContainer().getForeignKeyCache().getObjects(monitor, getContainer(), null);
         for (OracleTableForeignKey constraint : allForeignKeys) {
             if (constraint.getReferencedTable() == this) {
                 refs.add(constraint);
@@ -353,13 +353,13 @@ public class OracleTable extends OracleTablePhysical implements DBPScriptObject,
     public Collection<OracleTableForeignKey> getAssociations(@NotNull DBRProgressMonitor monitor)
         throws DBException
     {
-        return getContainer().foreignKeyCache.getObjects(monitor, getContainer(), this);
+        return getContainer().getForeignKeyCache().getObjects(monitor, getContainer(), this);
     }
 
     @Override
     public DBSObject refreshObject(@NotNull DBRProgressMonitor monitor) throws DBException
     {
-        getContainer().foreignKeyCache.clearObjectCache(this);
+        getContainer().getForeignKeyCache().clearObjectCache(this);
         if (tableSize != null) {
             tableSize = null;
             getTableSize(monitor);
