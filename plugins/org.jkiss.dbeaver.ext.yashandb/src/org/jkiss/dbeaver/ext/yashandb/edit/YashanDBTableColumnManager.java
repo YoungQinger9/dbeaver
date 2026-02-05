@@ -58,7 +58,7 @@ public class YashanDBTableColumnManager extends OracleTableColumnManager {
 			column.setDefaultValue(yashadbTabelColumn.getDefaultValue());
 
 		} else {
-			DBSDataType columnType = findBestDataType(table, "varchar2");
+			DBSDataType columnType = findBestDataType(table, "VARCHAR");
 
 			column.setName(getNewColumnName(monitor, context, table));
 			if (columnType != null) {

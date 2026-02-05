@@ -17,9 +17,6 @@
 package org.jkiss.dbeaver.ext.yashandb.model;
 
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
@@ -27,7 +24,6 @@ import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.ext.oracle.model.OracleConstants;
 import org.jkiss.dbeaver.ext.oracle.model.OracleDataSource;
-import org.jkiss.dbeaver.ext.oracle.model.OracleDataType;
 import org.jkiss.dbeaver.ext.oracle.model.OracleExecutionContext;
 import org.jkiss.dbeaver.ext.oracle.model.OracleSchema;
 import org.jkiss.dbeaver.ext.yashandb.model.session.YashanDBServerSessionManager;
@@ -98,17 +94,6 @@ public class YashanDBDataSource extends OracleDataSource {
 			} catch (SQLException e) {
 				log.warn(e);
 			}
-		}
-
-		yashanDBDataTypeCache.setCaseSensitive(false);
-		{
-			List<OracleDataType> dtList = new ArrayList<>();
-			for (Map.Entry<String, OracleDataType.TypeDesc> predefinedType : YashanDBDataType.PREDEFINED_TYPES
-					.entrySet()) {
-				OracleDataType dataType = new OracleDataType(this, predefinedType.getKey(), true);
-				dtList.add(dataType);
-			}
-			this.yashanDBDataTypeCache.setCache(dtList);
 		}
 	}
 
