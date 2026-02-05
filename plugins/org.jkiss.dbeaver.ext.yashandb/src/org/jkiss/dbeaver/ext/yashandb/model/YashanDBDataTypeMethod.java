@@ -18,48 +18,24 @@ package org.jkiss.dbeaver.ext.yashandb.model;
 
 import java.sql.ResultSet;
 
-import org.jkiss.dbeaver.model.impl.jdbc.JDBCUtils;
-import org.jkiss.dbeaver.model.meta.Property;
-import org.jkiss.dbeaver.model.struct.DBSEntityMethod;
+import org.jkiss.dbeaver.ext.oracle.model.OracleDataType;
+import org.jkiss.dbeaver.ext.oracle.model.OracleDataTypeMethod;
+import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 
-public class YashanDBDataTypeMethod extends YashanDBDataTypeMember implements DBSEntityMethod {
+/**
+ * YashanDBDataTypeMethod
+ */
+public class YashanDBDataTypeMethod extends OracleDataTypeMethod{
 
-	private String methodType;
-	private boolean flagFinal;
-	private boolean flagInstantiable;
-	private boolean flagOverriding;
+	public YashanDBDataTypeMethod(DBRProgressMonitor monitor, OracleDataType dataType, ResultSet dbResult) {
+		super(monitor, dataType, dbResult);
+		// YashanDB not support yet
+		this.parameterCache = null;
+	}
 
-	public YashanDBDataTypeMethod(YashanDBDataType dataType) {
+	public YashanDBDataTypeMethod(OracleDataType dataType) {
 		super(dataType);
-	}
-
-	public YashanDBDataTypeMethod(YashanDBDataType dataType, ResultSet dbResult) {
-		super(dataType);
-		this.name = JDBCUtils.safeGetString(dbResult, "METHOD_NAME");
-		this.no = JDBCUtils.safeGetInt(dbResult, "METHOD_NO");
-		this.methodType = JDBCUtils.safeGetString(dbResult, "METHOD_TYPE");
-		this.flagFinal = JDBCUtils.safeGetBoolean(dbResult, "FINAL", YashanDBConstants.YES);
-		this.flagInstantiable = JDBCUtils.safeGetBoolean(dbResult, "INSTANTIABLE", YashanDBConstants.YES);
-		this.flagOverriding = JDBCUtils.safeGetBoolean(dbResult, "OVERRIDING", YashanDBConstants.YES);
-	}
-
-	@Property(viewable = true, editable = true, order = 5)
-	public String getMethodType() {
-		return methodType;
-	}
-
-	@Property(viewable = true, order = 8)
-	public boolean isFinal() {
-		return flagFinal;
-	}
-
-	@Property(viewable = true, order = 9)
-	public boolean isInstantiable() {
-		return flagInstantiable;
-	}
-
-	@Property(viewable = true, order = 10)
-	public boolean isOverriding() {
-		return flagOverriding;
+		// YashanDB not support yet
+		this.parameterCache = null;
 	}
 }

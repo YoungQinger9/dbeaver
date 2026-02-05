@@ -18,6 +18,7 @@ package org.jkiss.dbeaver.ext.yashandb.ui.config;
 
 import java.util.Map;
 
+import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.ext.yashandb.model.YashanDBTableTrigger;
 import org.jkiss.dbeaver.model.edit.DBECommandContext;
@@ -27,21 +28,26 @@ import org.jkiss.dbeaver.model.struct.DBSEntityType;
 import org.jkiss.dbeaver.ui.UITask;
 import org.jkiss.dbeaver.ui.editors.object.struct.EntityEditPage;
 
+/**
+ * YashanDBTableTriggerConfigurator
+ */
 public class YashanDBTableTriggerConfigurator implements DBEObjectConfigurator<YashanDBTableTrigger> {
 
 	@Override
-	public YashanDBTableTrigger configureObject(@Nullable DBRProgressMonitor monitor,
+	public YashanDBTableTrigger configureObject(@NotNull DBRProgressMonitor monitor,
 			@Nullable DBECommandContext commandContext, @Nullable Object container,
-			@Nullable YashanDBTableTrigger newTrigger, @Nullable Map<String, Object> options) {
+			@NotNull YashanDBTableTrigger newTrigger, @NotNull Map<String, Object> options) {
 		return UITask.run(() -> {
 			EntityEditPage editPage = new EntityEditPage(newTrigger.getDataSource(), DBSEntityType.TRIGGER);
 			if (!editPage.edit()) {
 				return null;
 			}
 			newTrigger.setName(editPage.getEntityName());
-			newTrigger.setObjectDefinitionText(
-					"CREATE OR REPLACE TRIGGER " + editPage.getEntityName() + "\n" + "BEGIN\n" + "END;");
+			newTrigger.setObjectDefinitionText("CREATE OR REPLACE TRIGGER " + editPage.getEntityName() + "\n" + //$NON-NLS-1$ //$NON-NLS-2$
+					"BEGIN\n" + //$NON-NLS-1$
+					"END;"); //$NON-NLS-1$
 			return newTrigger;
 		});
 	}
+
 }

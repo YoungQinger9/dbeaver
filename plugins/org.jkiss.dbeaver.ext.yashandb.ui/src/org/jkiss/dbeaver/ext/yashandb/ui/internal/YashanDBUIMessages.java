@@ -18,28 +18,13 @@ package org.jkiss.dbeaver.ext.yashandb.ui.internal;
 
 import org.eclipse.osgi.util.NLS;
 
+/**
+ * YashanDBUIMessages
+ */
 public final class YashanDBUIMessages extends NLS {
 
 	private static final String BUNDLE_NAME = "org.jkiss.dbeaver.ext.yashandb.ui.internal.YashanDBUIMessages";
 
-	/* Schema */
-	public static String dialog_schema_edit_title;
-	public static String dialog_schema_edit_user_name;
-	public static String dialog_schema_edit_user_password;
-	public static String dialog_schema_edit_label;
-
-	/* Objects */
-	public static String edit_yashandb_foreign_key_manager_dialog_title;
-	public static String edit_yashandb_index_manager_dialog_title;
-	public static String edit_yashandb_constraint_manager_dialog_title;
-
-	/* session */
-    public static String editors_yashandb_session_editor_title_kill_session;
-    public static String editors_yashandb_session_editor_action_kill;
-    public static String editors_yashandb_session_editor_action__session;
-    public static String editors_yashandb_session_editor_confirm_action;
-    public static String editors_yashandb_session_editor_confirm_title;
-    
     public static String views_session_manager_viewer_show_background;
     public static String views_session_manager_viewer_show_background_tasks_tip;
     public static String views_session_manager_viewer_show_inactive;

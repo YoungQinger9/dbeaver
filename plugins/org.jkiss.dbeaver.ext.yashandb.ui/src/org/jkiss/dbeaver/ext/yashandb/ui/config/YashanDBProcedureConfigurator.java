@@ -18,6 +18,7 @@ package org.jkiss.dbeaver.ext.yashandb.ui.config;
 
 import java.util.Map;
 
+import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.ext.yashandb.model.YashanDBProcedureStandalone;
 import org.jkiss.dbeaver.model.edit.DBECommandContext;
@@ -28,12 +29,15 @@ import org.jkiss.dbeaver.ui.UITask;
 import org.jkiss.dbeaver.ui.editors.object.struct.CreateProcedurePage;
 import org.jkiss.dbeaver.utils.GeneralUtils;
 
+/**
+ * YashanDBProcedureConfigurator
+ */
 public class YashanDBProcedureConfigurator implements DBEObjectConfigurator<YashanDBProcedureStandalone> {
 
 	@Override
-	public YashanDBProcedureStandalone configureObject(@Nullable DBRProgressMonitor monitor,
+	public YashanDBProcedureStandalone configureObject(@NotNull DBRProgressMonitor monitor,
 			@Nullable DBECommandContext commandContext, @Nullable Object container,
-			@Nullable YashanDBProcedureStandalone procedure, @Nullable Map<String, Object> options) {
+			@NotNull YashanDBProcedureStandalone procedure, @NotNull Map<String, Object> options) {
 		return new UITask<YashanDBProcedureStandalone>() {
 			@Override
 			protected YashanDBProcedureStandalone runTask() {
@@ -60,4 +64,5 @@ public class YashanDBProcedureConfigurator implements DBEObjectConfigurator<Yash
 			}
 		}.execute();
 	}
+
 }

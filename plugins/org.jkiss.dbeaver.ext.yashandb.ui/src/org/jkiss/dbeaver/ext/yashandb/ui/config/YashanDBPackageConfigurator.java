@@ -18,6 +18,7 @@ package org.jkiss.dbeaver.ext.yashandb.ui.config;
 
 import java.util.Map;
 
+import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.ext.yashandb.model.YashanDBPackage;
 import org.jkiss.dbeaver.model.edit.DBECommandContext;
@@ -27,12 +28,15 @@ import org.jkiss.dbeaver.model.struct.DBSEntityType;
 import org.jkiss.dbeaver.ui.UITask;
 import org.jkiss.dbeaver.ui.editors.object.struct.EntityEditPage;
 
+/**
+ * YashanDBPackageConfigurator
+ */
 public class YashanDBPackageConfigurator implements DBEObjectConfigurator<YashanDBPackage> {
 
 	@Override
-	public YashanDBPackage configureObject(@Nullable DBRProgressMonitor monitor,
+	public YashanDBPackage configureObject(@NotNull DBRProgressMonitor monitor,
 			@Nullable DBECommandContext commandContext, @Nullable Object container,
-			@Nullable YashanDBPackage yashandbPackage, @Nullable Map<String, Object> options) {
+			@NotNull YashanDBPackage yashandbPackage, @NotNull Map<String, Object> options) {
 		return UITask.run(() -> {
 			EntityEditPage editPage = new EntityEditPage(yashandbPackage.getDataSource(), DBSEntityType.PACKAGE);
 			if (!editPage.edit()) {

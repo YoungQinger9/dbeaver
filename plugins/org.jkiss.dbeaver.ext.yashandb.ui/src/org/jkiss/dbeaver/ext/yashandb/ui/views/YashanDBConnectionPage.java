@@ -22,6 +22,9 @@ import org.jkiss.dbeaver.ext.generic.views.GenericConnectionPage;
 import org.jkiss.dbeaver.ui.UIUtils;
 import org.jkiss.dbeaver.ui.dialogs.connection.DriverPropertiesDialogPage;
 
+/**
+ * YashanDBConnectionPage
+ */
 public class YashanDBConnectionPage extends GenericConnectionPage {
 
 	private final Image logoImage;

@@ -1,4 +1,3 @@
-
 /*
  * DBeaver - Universal Database Manager
  * Copyright (C) 2010-2025 DBeaver Corp and others
@@ -18,65 +17,24 @@
 package org.jkiss.dbeaver.ext.yashandb.model;
 
 import java.util.Arrays;
-import java.util.Locale;
 
-import org.jkiss.code.NotNull;
-import org.jkiss.code.Nullable;
-import org.jkiss.dbeaver.DBException;
-import org.jkiss.dbeaver.Log;
-import org.jkiss.dbeaver.model.DBPDataKind;
-import org.jkiss.dbeaver.model.DBPDataSource;
-import org.jkiss.dbeaver.model.DBPDataTypeProvider;
-import org.jkiss.dbeaver.model.DBPEvaluationContext;
-import org.jkiss.dbeaver.model.DBPIdentifierCase;
-import org.jkiss.dbeaver.model.DBUtils;
-import org.jkiss.dbeaver.model.exec.DBCLogicalOperator;
+import org.jkiss.dbeaver.ext.oracle.model.OracleSQLDialect;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCDatabaseMetaData;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCSession;
 import org.jkiss.dbeaver.model.impl.jdbc.JDBCDataSource;
-import org.jkiss.dbeaver.model.impl.jdbc.JDBCSQLDialect;
-import org.jkiss.dbeaver.model.impl.sql.BasicSQLDialect;
-import org.jkiss.dbeaver.model.preferences.DBPPreferenceStore;
-import org.jkiss.dbeaver.model.runtime.VoidProgressMonitor;
-import org.jkiss.dbeaver.model.sql.SQLConstants;
-import org.jkiss.dbeaver.model.sql.SQLDataTypeConverter;
-import org.jkiss.dbeaver.model.sql.SQLDialect;
-import org.jkiss.dbeaver.model.sql.SQLExpressionFormatter;
-import org.jkiss.dbeaver.model.sql.SQLSyntaxManager;
-import org.jkiss.dbeaver.model.sql.parser.SQLParserActionKind;
-import org.jkiss.dbeaver.model.sql.parser.SQLRuleManager;
-import org.jkiss.dbeaver.model.sql.parser.SQLTokenPredicateSet;
-import org.jkiss.dbeaver.model.sql.parser.tokens.SQLTokenType;
-import org.jkiss.dbeaver.model.sql.parser.tokens.predicates.TokenPredicateFactory;
-import org.jkiss.dbeaver.model.sql.parser.tokens.predicates.TokenPredicateSet;
-import org.jkiss.dbeaver.model.sql.parser.tokens.predicates.TokenPredicatesCondition;
-import org.jkiss.dbeaver.model.struct.DBSDataType;
-import org.jkiss.dbeaver.model.struct.DBSTypedObject;
-import org.jkiss.dbeaver.model.struct.rdb.DBSProcedure;
-import org.jkiss.utils.ArrayUtils;
-import org.jkiss.utils.CommonUtils;
 
-public class YashanDBSQLDialect extends JDBCSQLDialect implements SQLDataTypeConverter {
+/**
+ * YashanDBSQLDialect
+ */
+public class YashanDBSQLDialect extends OracleSQLDialect {
 
-	private static final Log log = Log.getLog(YashanDBSQLDialect.class);
-
-	private static final String[] EXEC_KEYWORDS = new String[] { "call" };
-
-	private static final String[] YASHANDB_NON_TRANSACTIONAL_KEYWORDS = ArrayUtils.concatArrays(
-			BasicSQLDialect.NON_TRANSACTIONAL_KEYWORDS,
-			new String[] { "CREATE", "ALTER", "DROP", "ANALYZE", "VALIDATE", });
-
-	private static final String[][] YASHANDB_BEGIN_END_BLOCK = new String[][] {
-			{ SQLConstants.BLOCK_BEGIN, SQLConstants.BLOCK_END }, { "IF", SQLConstants.BLOCK_END + " IF" },
-			{ "LOOP", SQLConstants.BLOCK_END + " LOOP" },
-			{ SQLConstants.KEYWORD_CASE, SQLConstants.BLOCK_END + " " + SQLConstants.KEYWORD_CASE } };
-
-	private static final String[] YASHANDB_BLOCK_HEADERS = new String[] { "DECLARE", "FUNCTION", "PROCEDURE" };
-
-	private static final String[] YASHANDB_INNER_BLOCK_PREFIXES = new String[] { "AS", "IS" };
+	private static final String[] YASHANDB_ADVANCED_KEYWORDS = { "SYNONYM", "CREATE OR REPLACE", "NEXTVAL", "REPLACEex",
+			"PACKAGE", "FUNCTION", "TYPE", "BODY", "RECORD", "TRIGGER", "MATERIALIZED", "IF", "EACH", "RETURN",
+			"WRAPPED", "AFTER", "BEFORE", "DATABASE", "ANALYZE", "VALIDATE", "STRUCTURE", "COMPUTE", "STATISTICS",
+			"LOOP", "WHILE", "BULK", "ELSIF", "EXIT", };
 
 	// V$RESERVED_WORDS
-	public static final String[] YASHANDB_ALL_KEYWORD = { "ABORT", "ACCESS", "ACCOUNT", "ACTIONS", "ADD", "ADMINISTER",
+	private static final String[] YASHANDB_ALL_KEYWORD = { "ABORT", "ACCESS", "ACCOUNT", "ACTIONS", "ADD", "ADMINISTER",
 			"ALL", "ALL_ROWS", "ALTER", "ANALYZE", "AND", "ANY", "APPEND", "ARCHIVE", "ARCHIVELOG", "AS", "ASC", "AT",
 			"AUDIT", "AUTHID", "AUTO_LOGIN", "BACKUP", "BASE", "BATCH_MODE", "BEFORE", "BEGIN", "BETWEEN", "BFILE",
 			"BIGFILE", "BIGINT", "BINARY", "BINARY_BIGINT", "BINARY_DOUBLE", "BINARY_FLOAT", "BINARY_INTEGER",
@@ -129,27 +87,10 @@ public class YashanDBSQLDialect extends JDBCSQLDialect implements SQLDataTypeCon
 			"USE_MERGE", "USE_NL", "USING", "UTC_TIMESTAMP", "VALIDATE", "VALUES", "VARCHAR", "VARCHAR2", "VIEW",
 			"VISIBLE", "WAIT", "WELLFORMED", "WHEN", "WHENEVER", "WHERE", "WHILE", "WITH", "WITHOUT", "WRAPPED", "YEAR",
 			"ZONE", "ZORDER" };
-
-	public static final String[] ADVANCED_KEYWORDS = { "SYNONYM", "CREATE OR REPLACE", "NEXTVAL", "REPLACEex",
-			"PACKAGE", "FUNCTION", "TYPE", "BODY", "RECORD", "TRIGGER", "MATERIALIZED", "IF", "EACH", "RETURN",
-			"WRAPPED", "AFTER", "BEFORE", "DATABASE", "ANALYZE", "VALIDATE", "STRUCTURE", "COMPUTE", "STATISTICS",
-			"LOOP", "WHILE", "BULK", "ELSIF", "EXIT", };
-
-	private DBPPreferenceStore preferenceStore;
-
-	private SQLTokenPredicateSet cachedDialectSkipTokenPredicates = null;
-
-	public YashanDBSQLDialect() {
-		super("YashanDB", "yashandb");
-		log.debug(">>>Initialize {YashanDBSQLDialect}....");
-		setUnquotedIdentCase(DBPIdentifierCase.UPPER);
-	}
-
+	
+	@Override
 	public void initDriverSettings(JDBCSession session, JDBCDataSource dataSource, JDBCDatabaseMetaData metaData) {
 		super.initDriverSettings(session, dataSource, metaData);
-		preferenceStore = dataSource.getContainer().getPreferenceStore();
-
-		setIdentifierQuoteString(DEFAULT_IDENTIFIER_QUOTES);
 
 		// V$FUNCTION
 		addFunctions(Arrays.asList("DBMS_OUTPUT.PUT_LINE", "ABS", "ACOS", "ADD_MONTHS", "AGE", "ARRAY_APPEND",
@@ -204,272 +145,13 @@ public class YashanDBSQLDialect extends JDBCSQLDialect implements SQLDataTypeCon
 				"XMLWRITEDOCTOBUF", "XMLWRITENODETOBUF", "YASDECODE", "__GEOM_CHECK_MODIFIER__", "__MAKE_RTREE_KEY3__",
 				"__MAKE_RTREE_KEY__", "__MY_COLLATE_SORT"));
 
-		for (String kw : ADVANCED_KEYWORDS) {
+		for (String kw : YASHANDB_ADVANCED_KEYWORDS) {
 			addSQLKeyword(kw);
 		}
-
-		turnFunctionIntoKeyword("TRUNCATE");
-
-		cachedDialectSkipTokenPredicates = makeDialectSkipTokenPredicates(dataSource);
 	}
-
+	
 	@Override
 	public String[] getDMLKeywords() {
 		return YASHANDB_ALL_KEYWORD;
-	}
-
-	@Override
-	public String[][] getBlockBoundStrings() {
-		return YASHANDB_BEGIN_END_BLOCK;
-	}
-
-	@Override
-	public String[] getBlockHeaderStrings() {
-		return YASHANDB_BLOCK_HEADERS;
-	}
-
-	@Nullable
-	@Override
-	public String[] getInnerBlockPrefixes() {
-		return YASHANDB_INNER_BLOCK_PREFIXES;
-	}
-
-	@NotNull
-	@Override
-	public String[] getExecuteKeywords() {
-		return EXEC_KEYWORDS;
-	}
-
-	@NotNull
-	@Override
-	public MultiValueInsertMode getDefaultMultiValueInsertMode() {
-		return MultiValueInsertMode.GROUP_ROWS;
-	}
-
-	@Override
-	public String getLikeEscapeClause(@NotNull String escapeChar) {
-		return " ESCAPE " + getQuotedString(escapeChar);
-	}
-
-	@NotNull
-	@Override
-	public String escapeScriptValue(DBSTypedObject attribute, @NotNull Object value, @NotNull String strValue) {
-		if (CommonUtils.isNaN(value) || CommonUtils.isInfinite(value)) {
-			return '\'' + String.valueOf(value) + '\'';
-		}
-
-		String fullTypeName = attribute.getFullTypeName();
-		if (fullTypeName.contains("INTERVAL") || fullTypeName.contains("TIME"))
-			return '\'' + String.valueOf(value) + '\'';
-
-		return super.escapeScriptValue(attribute, value, strValue);
-	}
-
-	@Override
-	public boolean supportsAliasInSelect() {
-		return true;
-	}
-
-	@Override
-	public boolean supportsAliasInUpdate() {
-		return true;
-	}
-
-	@Override
-	public boolean supportsTableDropCascade() {
-		return true;
-	}
-
-	@Nullable
-	@Override
-	public SQLExpressionFormatter getCaseInsensitiveExpressionFormatter(@NotNull DBCLogicalOperator operator) {
-		if (operator == DBCLogicalOperator.LIKE) {
-			return (left, right) -> "UPPER(" + left + ") LIKE UPPER(" + right + ")";
-		}
-		return super.getCaseInsensitiveExpressionFormatter(operator);
-	}
-
-	@Override
-	public boolean isDelimiterAfterBlock() {
-		return true;
-	}
-
-	@Nullable
-	@Override
-	public String getDualTableName() {
-		return "DUAL";
-	}
-
-	@NotNull
-	@Override
-	public String[] getNonTransactionKeywords() {
-		return YASHANDB_NON_TRANSACTIONAL_KEYWORDS;
-	}
-
-	@Override
-	protected String getStoredProcedureCallInitialClause(DBSProcedure proc) {
-		String schemaName = proc.getParentObject().getName();
-		return "CALL " + schemaName + "." + proc.getName();
-	}
-
-	@Override
-	public boolean isDisableScriptEscapeProcessing() {
-		return preferenceStore == null
-				|| preferenceStore.getBoolean(YashanDBConstants.PREF_DISABLE_SCRIPT_ESCAPE_PROCESSING);
-	}
-
-	@NotNull
-	@Override
-	public String[] getScriptDelimiters() {
-		return super.getScriptDelimiters();
-	}
-
-	@Override
-	public String getColumnTypeModifiers(@NotNull DBPDataSource dataSource, @NotNull DBSTypedObject column,
-			@NotNull String typeName, @NotNull DBPDataKind dataKind) {
-		Integer scale;
-		switch (typeName) {
-		case YashanDBConstants.TYPE_NUMBER:
-		case YashanDBConstants.TYPE_DECIMAL:
-			DBSDataType dataType = DBUtils.getDataType(column);
-			scale = column.getScale();
-			int precision = CommonUtils.toInt(column.getPrecision());
-			if (precision == 0 && dataType != null && scale != null && scale == dataType.getMinScale()) {
-				return "";
-			}
-			if (precision == 0 || precision > YashanDBConstants.NUMERIC_MAX_PRECISION) {
-				precision = YashanDBConstants.NUMERIC_MAX_PRECISION;
-			}
-			if (scale != null && precision > 0) {
-				return "(" + precision + ',' + scale + ")";
-			}
-			break;
-		case YashanDBConstants.TYPE_INTERVAL_DAY_SECOND:
-			scale = column.getScale();
-			if (scale == null) {
-				return "";
-			}
-			if (scale < 0 || scale > 9) {
-				scale = YashanDBConstants.INTERVAL_DEFAULT_SECONDS_PRECISION;
-			}
-			return "(" + scale + ")";
-		case YashanDBConstants.TYPE_NAME_BFILE:
-		case YashanDBConstants.TYPE_NAME_CFILE:
-		case YashanDBConstants.TYPE_CONTENT_POINTER:
-		case YashanDBConstants.TYPE_LONG:
-		case YashanDBConstants.TYPE_LONG_RAW:
-		case YashanDBConstants.TYPE_OCTET:
-		case YashanDBConstants.TYPE_INTERVAL_YEAR_MONTH:
-			return "";
-		default:
-		}
-		return super.getColumnTypeModifiers(dataSource, column, typeName, dataKind);
-	}
-
-	@Override
-	public String convertExternalDataType(@NotNull SQLDialect sourceDialect, @NotNull DBSTypedObject sourceTypedObject,
-			@Nullable DBPDataTypeProvider targetTypeProvider) {
-		String type = super.convertExternalDataType(sourceDialect, sourceTypedObject, targetTypeProvider);
-		if (type != null) {
-			return type;
-		}
-
-		final String externalTypeName = sourceTypedObject.getTypeName().toUpperCase(Locale.ENGLISH);
-		String localDataType = null;
-		String dataTypeModifies = null;
-
-		switch (externalTypeName) {
-		case "VARCHAR":
-			localDataType = YashanDBConstants.TYPE_NAME_VARCHAR2;
-			break;
-		case "XML":
-		case "XMLTYPE":
-			localDataType = YashanDBConstants.TYPE_FQ_XML;
-			break;
-		case "JSON":
-		case "JSONB":
-			localDataType = "JSON";
-			break;
-		case "GEOMETRY":
-		case "GEOGRAPHY":
-		case "SDO_GEOMETRY":
-			localDataType = YashanDBConstants.TYPE_FQ_GEOMETRY;
-			break;
-		case "NUMERIC":
-			localDataType = YashanDBConstants.TYPE_NUMBER;
-			if (sourceTypedObject.getPrecision() != null) {
-				StringBuilder modifier = new StringBuilder(sourceTypedObject.getPrecision().toString());
-				if (sourceTypedObject.getScale() != null) {
-					modifier.append(",").append(sourceTypedObject.getScale());
-				}
-				dataTypeModifies = modifier.toString();
-			}
-			break;
-		default:
-			return null;
-		}
-
-		if (targetTypeProvider != null) {
-			try {
-				DBSDataType dataType = targetTypeProvider.resolveDataType(new VoidProgressMonitor(), localDataType);
-				if (dataType == null) {
-					return null;
-				}
-				String targetTypeName = DBUtils.getObjectFullName(dataType, DBPEvaluationContext.DDL);
-				if (dataTypeModifies != null) {
-					targetTypeName += "(" + dataTypeModifies + ")";
-				}
-				return targetTypeName;
-			} catch (DBException e) {
-				log.debug("Error resolving local data type", e);
-				return null;
-			}
-		}
-
-		return localDataType;
-	}
-
-	@Override
-	@NotNull
-	public SQLTokenPredicateSet getSkipTokenPredicates() {
-		return cachedDialectSkipTokenPredicates == null ? super.getSkipTokenPredicates()
-				: cachedDialectSkipTokenPredicates;
-	}
-
-	@NotNull
-	private SQLTokenPredicateSet makeDialectSkipTokenPredicates(JDBCDataSource dataSource) {
-		SQLSyntaxManager syntaxManager = new SQLSyntaxManager();
-		syntaxManager.init(this, dataSource.getContainer().getPreferenceStore());
-		SQLRuleManager ruleManager = new SQLRuleManager(syntaxManager);
-		ruleManager.loadRules(dataSource, false);
-		TokenPredicateFactory tt = TokenPredicateFactory.makeDialectSpecificFactory(ruleManager);
-		TokenPredicateSet conditions = TokenPredicateSet.of(
-				new TokenPredicatesCondition(SQLParserActionKind.BEGIN_BLOCK,
-						tt.sequence("CREATE", tt.optional("OR", "REPLACE"),
-								tt.optional(tt.alternative("EDITIONABLE", "NONEDITIONABLE")), "PACKAGE", "BODY"),
-						tt.sequence()),
-				new TokenPredicatesCondition(SQLParserActionKind.SKIP_SUFFIX_TERM,
-						tt.sequence("CREATE", tt.optional("OR", "REPLACE"),
-								tt.optional(tt.alternative("EDITIONABLE", "NONEDITIONABLE")),
-								tt.alternative("FUNCTION", "PROCEDURE")),
-						tt.sequence(tt.alternative(tt.sequence("RETURN", SQLTokenType.T_TYPE), "deterministor",
-								"pipelined", "parallel_enable", "result_cache", ")",
-								tt.sequence("procedure", SQLTokenType.T_OTHER),
-								tt.sequence(SQLTokenType.T_OTHER, SQLTokenType.T_TYPE)), ";")));
-
-		conditions.add(new TokenPredicatesCondition(SQLParserActionKind.SKIP_SUFFIX_TERM, tt.token("WITH"),
-				tt.sequence("END", ";")));
-
-		return conditions;
-	}
-
-	@Override
-	public boolean hasCaseSensitiveFiltration() {
-		return true;
-	}
-
-	@Override
-	public boolean supportsAliasInConditions() {
-		return false;
 	}
 }

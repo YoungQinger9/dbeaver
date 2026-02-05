@@ -17,60 +17,36 @@
 package org.jkiss.dbeaver.ext.yashandb.model;
 
 import java.sql.ResultSet;
-import java.util.Collection;
-import java.util.List;
+import java.util.Map;
 
 import org.jkiss.code.NotNull;
-import org.jkiss.code.Nullable;
-import org.jkiss.dbeaver.Log;
-import org.jkiss.dbeaver.model.impl.jdbc.JDBCUtils;
-import org.jkiss.dbeaver.model.meta.Association;
+import org.jkiss.dbeaver.DBException;
+import org.jkiss.dbeaver.ext.oracle.model.OracleTableBase;
+import org.jkiss.dbeaver.ext.oracle.model.OracleTableTrigger;
 import org.jkiss.dbeaver.model.meta.Property;
+import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 
-public class YashanDBTableTrigger extends YashanDBTrigger<YashanDBTableBase> {
+/**
+ * YashanDBTableTrigger
+ */
+public class YashanDBTableTrigger extends OracleTableTrigger {
 
-	private static final Log log = Log.getLog(YashanDBTableTrigger.class);
-
-	private YashanDBSchema ownerSchema;
-	private List<YashanDBTriggerColumn> columns;
-
-	public YashanDBTableTrigger(YashanDBTableBase table, String name) {
-		super(table, name);
-		ownerSchema = table.getSchema();
-	}
-
-	public YashanDBTableTrigger(YashanDBTableBase table, ResultSet dbResult) {
+	public YashanDBTableTrigger(OracleTableBase table, ResultSet dbResult) {
 		super(table, dbResult);
-		String ownerName = JDBCUtils.safeGetStringTrimmed(dbResult, "OWNER");
-		if (ownerName != null) {
-			this.ownerSchema = table.getDataSource().schemaCache.getCachedObject(ownerName);
-			if (this.ownerSchema == null) {
-				log.warn("Trigger owner schema '" + ownerName + "' not found");
-			}
-		}
-		if (this.ownerSchema == null) {
-			this.ownerSchema = table.getSchema();
-		}
 	}
 
+	public YashanDBTableTrigger(OracleTableBase table, String name) {
+		super(table, name);
+	}
+
+	@NotNull
 	@Override
-	@Property(viewable = true, order = 4)
-	public YashanDBTableBase getTable() {
-		return parent;
-	}
-
-	@Override
-	public YashanDBSchema getSchema() {
-		return this.ownerSchema;
-	}
-
-	@Association
-	@Nullable
-	public Collection<YashanDBTriggerColumn> getColumns() {
-		return columns;
-	}
-
-	public void setColumns(@NotNull List<YashanDBTriggerColumn> columns) {
-		this.columns = columns;
+	@Property(hidden = true, editable = true, updatable = true, order = -1)
+	public String getObjectDefinitionText(@NotNull DBRProgressMonitor monitor, @NotNull Map<String, Object> options)
+			throws DBException {
+		if (sourceDeclaration == null && monitor != null) {
+			sourceDeclaration = YashanDBUtils.getSource(monitor, this, false, false);
+		}
+		return sourceDeclaration;
 	}
 }

@@ -17,18 +17,16 @@
 package org.jkiss.dbeaver.ext.yashandb.ui.editors;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.IContributionManager;
 import org.eclipse.jface.action.Separator;
-import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.IDialogSettings;
-import org.eclipse.jface.dialogs.MessageDialog;
-import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.widgets.Composite;
-import org.jkiss.dbeaver.ext.yashandb.model.YashanDBDataSource;
+import org.jkiss.dbeaver.ext.oracle.model.OracleDataSource;
+import org.jkiss.dbeaver.ext.oracle.model.session.OracleServerSessionManager;
+import org.jkiss.dbeaver.ext.oracle.ui.editors.OracleSessionEditor;
 import org.jkiss.dbeaver.ext.yashandb.model.session.YashanDBServerSession;
 import org.jkiss.dbeaver.ext.yashandb.model.session.YashanDBServerSessionManager;
 import org.jkiss.dbeaver.ext.yashandb.ui.internal.YashanDBUIMessages;
@@ -38,28 +36,25 @@ import org.jkiss.dbeaver.model.exec.DBCExecutionContext;
 import org.jkiss.dbeaver.ui.ActionUtils;
 import org.jkiss.dbeaver.ui.DBeaverIcons;
 import org.jkiss.dbeaver.ui.UIIcon;
-import org.jkiss.dbeaver.ui.dialogs.ConfirmationDialog;
-import org.jkiss.dbeaver.ui.views.session.AbstractSessionEditor;
 import org.jkiss.dbeaver.ui.views.session.SessionManagerViewer;
 import org.jkiss.utils.CommonUtils;
 
-public class YashanDBSessionEditor extends AbstractSessionEditor {
-
-	private KillSessionAction killSessionAction;
-	
-	public YashanDBSessionEditor() {
-	}
+/**
+ * YashanDBSessionEditor
+ */
+public class YashanDBSessionEditor extends OracleSessionEditor {
 
 	@Override
 	public void createEditorControl(Composite parent) {
-		killSessionAction = new KillSessionAction();
+		// YashanDB only support kill session
+		killSessionAction = new DisconnectSessionAction(true);
 		super.createEditorControl(parent);
 	}
 
 	@Override
 	protected SessionManagerViewer createSessionViewer(DBCExecutionContext executionContext, Composite parent) {
 		return new SessionManagerViewer<YashanDBServerSession>(this, parent,
-				new YashanDBServerSessionManager((YashanDBDataSource) executionContext.getDataSource())) {
+				new YashanDBServerSessionManager((OracleDataSource) executionContext.getDataSource())) {
 
 			private boolean showBackground;
 			private boolean showInactive;
@@ -126,40 +121,14 @@ public class YashanDBSessionEditor extends AbstractSessionEditor {
 			public Map<String, Object> getSessionOptions() {
 				Map<String, Object> options = new HashMap<>();
 				if (showBackground) {
-					options.put(YashanDBServerSessionManager.OPTION_SHOW_BACKGROUND, true);
+					options.put(OracleServerSessionManager.OPTION_SHOW_BACKGROUND, true);
 				}
 				if (showInactive) {
-					options.put(YashanDBServerSessionManager.OPTION_SHOW_INACTIVE, true);
+					options.put(OracleServerSessionManager.OPTION_SHOW_INACTIVE, true);
 				}
 				return options;
 			}
 
 		};
 	}
-
-	private class KillSessionAction extends Action {
-
-		KillSessionAction() {
-			super(YashanDBUIMessages.editors_yashandb_session_editor_title_kill_session,
-					DBeaverIcons.getImageDescriptor(UIIcon.REJECT));
-		}
-
-		@Override
-		public void run() {
-			final List<DBAServerSession> sessions = getSessionsViewer().getSelectedSessions();
-			final String action = YashanDBUIMessages.editors_yashandb_session_editor_action_kill
-					+ YashanDBUIMessages.editors_yashandb_session_editor_action__session;
-			ConfirmationDialog dialog = new ConfirmationDialog(getSite().getShell(), action, null,
-					NLS.bind(YashanDBUIMessages.editors_yashandb_session_editor_confirm_action, action.toLowerCase(),
-							sessions),
-					MessageDialog.CONFIRM, new String[] { IDialogConstants.YES_LABEL, IDialogConstants.NO_LABEL }, 0,
-					YashanDBUIMessages.editors_yashandb_session_editor_confirm_title, false);
-			if (dialog.open() == IDialogConstants.YES_ID) {
-				Map<String, Object> options = new HashMap<>();
-				options.put(YashanDBServerSessionManager.PROP_KILL_SESSION, true);
-				getSessionsViewer().alterSessions(sessions, options);
-			}
-		}
-	}
-
 }

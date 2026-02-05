@@ -17,102 +17,60 @@
 package org.jkiss.dbeaver.ext.yashandb.model;
 
 import java.sql.ResultSet;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 import org.jkiss.code.NotNull;
 import org.jkiss.dbeaver.DBException;
-import org.jkiss.dbeaver.ext.yashandb.model.util.YashanDBUtils;
-import org.jkiss.dbeaver.model.exec.DBCException;
-import org.jkiss.dbeaver.model.impl.DBObjectNameCaseTransformer;
+import org.jkiss.dbeaver.ext.oracle.model.OraclePrivTable;
+import org.jkiss.dbeaver.ext.oracle.model.OracleSchema;
+import org.jkiss.dbeaver.ext.oracle.model.OracleView;
+import org.jkiss.dbeaver.model.edit.DBEPersistAction;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
-import org.jkiss.dbeaver.model.struct.DBSObject;
-import org.jkiss.dbeaver.model.struct.DBSObjectState;
-import org.jkiss.dbeaver.model.struct.rdb.DBSView;
 
-public class YashanDBView extends YashanDBTableBase implements YashanDBSourceObject, DBSView {
-
-	private String viewText;
-
-	public YashanDBView(YashanDBSchema schema, String name) {
-		super(schema, name, false);
+/**
+ * YashanDBView
+ */
+public class YashanDBView extends OracleView {
+	
+	public YashanDBView(OracleSchema schema, String name) {
+		super(schema, name);
 	}
 
-	public YashanDBView(YashanDBSchema schema, ResultSet dbResult) {
+	public YashanDBView(OracleSchema schema, ResultSet dbResult) {
 		super(schema, dbResult);
 	}
 
+	@Override
+	public AdditionalInfo getAdditionalInfo(DBRProgressMonitor monitor) {
+		// YashanDB not support yet
+		return new AdditionalInfo();
+	}
+
+	@Override
+	public Collection<OraclePrivTable> getTablePrivs(DBRProgressMonitor monitor) throws DBException {
+		// YashanDB not support yet.
+		return Collections.emptyList();
+	}
+
 	@NotNull
-	@Property(viewable = true, editable = true, valueTransformer = DBObjectNameCaseTransformer.class, order = 1)
-	@Override
-	public String getName() {
-		return super.getName();
-	}
-
-	@Override
-	public boolean isView() {
-		return true;
-	}
-
-	@Override
-	public YashanDBSourceType getSourceType() {
-		return YashanDBSourceType.VIEW;
-	}
-
-	public void setObjectDefinitionText(String source) {
-		this.viewText = source;
-	}
-
-	@Override
-	public DBSObject refreshObject(@NotNull DBRProgressMonitor monitor) throws DBException {
-		this.viewText = null;
-		return super.refreshObject(monitor);
-	}
-
-	@Override
-	protected String getTableTypeName() {
-		return "VIEW";
-	}
-
-	@Override
-	public TableAdditionalInfo getAdditionalInfo() {
-		return null;
-	}
-
-	public String getViewText() {
-		return viewText;
-	}
-
-	public void setViewText(String viewText) {
-		this.viewText = viewText;
-	}
-
 	@Override
 	@Property(hidden = true, editable = true, updatable = true, order = -1)
-	public String getObjectDefinitionText(DBRProgressMonitor monitor, Map<String, Object> options) throws DBException {
+	public String getObjectDefinitionText(@NotNull DBRProgressMonitor monitor, @NotNull Map<String, Object> options)
+			throws DBException {
 		if (viewText != null) {
 			return viewText;
 		}
+		// View DDL missing a comma
 		return YashanDBUtils.getTableOrViewDDL(monitor, getTableTypeName(), this, options);
 	}
-
+	
 	@Override
-	public DBSObjectState getObjectState() {
-		return null;
+	public DBEPersistAction[] getCompileActions(DBRProgressMonitor monitor) {
+		// YashanDB not support
+		return new DBEPersistAction[] {};
 	}
 
-	@Override
-	public void refreshObjectState(DBRProgressMonitor monitor) throws DBCException {
-		// empty body
-	}
-
-	@Override
-	public String getDescription(DBRProgressMonitor monitor) {
-		return null;
-	}
-
-	@Override
-	public String getDescription() {
-		return null;
-	}
 }
