@@ -16,12 +16,27 @@
  */
 package org.jkiss.dbeaver.ext.oracle.model;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Types;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.ext.oracle.model.source.OracleSourceObject;
-import org.jkiss.dbeaver.model.*;
+import org.jkiss.dbeaver.model.DBIcon;
+import org.jkiss.dbeaver.model.DBPDataKind;
+import org.jkiss.dbeaver.model.DBPEvaluationContext;
+import org.jkiss.dbeaver.model.DBPImage;
+import org.jkiss.dbeaver.model.DBPImageProvider;
+import org.jkiss.dbeaver.model.DBPQualifiedObject;
+import org.jkiss.dbeaver.model.DBPScriptObjectExt;
+import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.edit.DBEPersistAction;
 import org.jkiss.dbeaver.model.exec.DBCException;
 import org.jkiss.dbeaver.model.exec.DBCLogicalOperator;
@@ -35,656 +50,614 @@ import org.jkiss.dbeaver.model.impl.jdbc.cache.JDBCObjectCache;
 import org.jkiss.dbeaver.model.meta.Association;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
-import org.jkiss.dbeaver.model.struct.*;
+import org.jkiss.dbeaver.model.struct.DBSDataType;
+import org.jkiss.dbeaver.model.struct.DBSEntity;
+import org.jkiss.dbeaver.model.struct.DBSEntityAssociation;
+import org.jkiss.dbeaver.model.struct.DBSEntityConstraint;
+import org.jkiss.dbeaver.model.struct.DBSEntityType;
+import org.jkiss.dbeaver.model.struct.DBSObject;
+import org.jkiss.dbeaver.model.struct.DBSObjectState;
+import org.jkiss.dbeaver.model.struct.DBSTypedObject;
 import org.jkiss.utils.CommonUtils;
-
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Types;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Oracle data type
  */
-public class OracleDataType extends OracleObject<DBSObject>
-    implements DBSDataType, DBSEntity, DBPQualifiedObject, OracleSourceObject, DBPScriptObjectExt, DBPImageProvider {
+public class OracleDataType extends OracleObject<DBSObject> implements DBSDataType, DBSEntity, DBPQualifiedObject,
+		OracleSourceObject, DBPScriptObjectExt, DBPImageProvider {
 
-    private static final Log log = Log.getLog(OracleDataType.class);
+	private static final Log log = Log.getLog(OracleDataType.class);
 
-    public static final String TYPE_CODE_COLLECTION = "COLLECTION";
-    public static final String TYPE_CODE_OBJECT = "OBJECT";
+	public static final String TYPE_CODE_COLLECTION = "COLLECTION";
+	public static final String TYPE_CODE_OBJECT = "OBJECT";
+	public static final Map<String, TypeDesc> PREDEFINED_TYPES = new HashMap<>();
 
-    public static class TypeDesc {
-        final DBPDataKind dataKind;
-        public final int valueType;
-        final int precision;
-        final int minScale;
-        final int maxScale;
-        final int serverAtLeastMajor;
-        final int serverAtLeastMinor;
+	static {
+		PREDEFINED_TYPES.put("BFILE", new TypeDesc(DBPDataKind.CONTENT, Types.OTHER, 0, 0, 0));
+		PREDEFINED_TYPES.put("BINARY ROWID", new TypeDesc(DBPDataKind.ROWID, Types.ROWID, 0, 0, 0));
+		PREDEFINED_TYPES.put("BINARY_DOUBLE", new TypeDesc(DBPDataKind.NUMERIC, Types.DOUBLE, 38, 127, -84));
+		PREDEFINED_TYPES.put("BINARY_FLOAT", new TypeDesc(DBPDataKind.NUMERIC, Types.FLOAT, 38, 127, -84));
+		PREDEFINED_TYPES.put("BLOB", new TypeDesc(DBPDataKind.CONTENT, Types.BLOB, 0, 0, 0));
+		PREDEFINED_TYPES.put("BOOLEAN", new TypeDesc(DBPDataKind.BOOLEAN, Types.BOOLEAN, 0, 0, 0, 23, 0));
+		PREDEFINED_TYPES.put("CANONICAL", new TypeDesc(DBPDataKind.UNKNOWN, Types.OTHER, 0, 0, 0));
+		PREDEFINED_TYPES.put("CFILE", new TypeDesc(DBPDataKind.CONTENT, Types.OTHER, 0, 0, 0));
+		PREDEFINED_TYPES.put("CHAR", new TypeDesc(DBPDataKind.STRING, Types.CHAR, 0, 0, 0));
+		PREDEFINED_TYPES.put("CLOB", new TypeDesc(DBPDataKind.CONTENT, Types.CLOB, 0, 0, 0));
+		PREDEFINED_TYPES.put("JSON", new TypeDesc(DBPDataKind.CONTENT, Types.OTHER, 0, 0, 0));
+		PREDEFINED_TYPES.put("CONTIGUOUS ARRAY", new TypeDesc(DBPDataKind.ARRAY, Types.ARRAY, 0, 0, 0));
+		// DATE IS TIMESTAMP. It always keeps time value. But sometimes it is visualized
+		// as DATE (see #2457)
+		PREDEFINED_TYPES.put("DATE", new TypeDesc(DBPDataKind.DATETIME, Types.TIMESTAMP, 0, 0, 0));
+		PREDEFINED_TYPES.put("DECIMAL", new TypeDesc(DBPDataKind.NUMERIC, Types.DECIMAL, 38, 127, -84));
+		PREDEFINED_TYPES.put("DOUBLE PRECISION", new TypeDesc(DBPDataKind.NUMERIC, Types.DOUBLE, 38, 127, -84));
+		PREDEFINED_TYPES.put("FLOAT", new TypeDesc(DBPDataKind.NUMERIC, Types.FLOAT, 38, 127, -84));
+		PREDEFINED_TYPES.put("INTEGER", new TypeDesc(DBPDataKind.NUMERIC, Types.INTEGER, 38, 127, -84));
+		PREDEFINED_TYPES.put("INTERVAL DAY TO SECOND", new TypeDesc(DBPDataKind.STRING, Types.VARCHAR, 0, 0, 0));
+		PREDEFINED_TYPES.put("INTERVAL YEAR TO MONTH", new TypeDesc(DBPDataKind.STRING, Types.VARCHAR, 0, 0, 0));
+		PREDEFINED_TYPES.put("CONTENT POINTER", new TypeDesc(DBPDataKind.CONTENT, Types.BLOB, 0, 0, 0));
+		PREDEFINED_TYPES.put("NAMED COLLECTION", new TypeDesc(DBPDataKind.ARRAY, Types.ARRAY, 0, 0, 0));
+		PREDEFINED_TYPES.put("NAMED OBJECT", new TypeDesc(DBPDataKind.OBJECT, Types.STRUCT, 0, 0, 0));
+		PREDEFINED_TYPES.put("NUMBER", new TypeDesc(DBPDataKind.NUMERIC, Types.NUMERIC, 38, 127, -84));
+		PREDEFINED_TYPES.put("OCTET", new TypeDesc(DBPDataKind.BINARY, Types.OTHER, 0, 0, 0));
+		PREDEFINED_TYPES.put("OID", new TypeDesc(DBPDataKind.STRING, Types.VARCHAR, 0, 0, 0));
+		PREDEFINED_TYPES.put("POINTER", new TypeDesc(DBPDataKind.UNKNOWN, Types.OTHER, 0, 0, 0));
+		PREDEFINED_TYPES.put("REAL", new TypeDesc(DBPDataKind.NUMERIC, Types.REAL, 38, 127, -84));
+		PREDEFINED_TYPES.put("REF", new TypeDesc(DBPDataKind.REFERENCE, Types.OTHER, 0, 0, 0));
+		// PREDEFINED_TYPES.put("SIGNED BINARY INTEGER", new
+		// TypeDesc(DBPDataKind.NUMERIC, Types.INTEGER, 38, 127, -84)); can not be
+		// created as a data type
+		PREDEFINED_TYPES.put("SMALLINT", new TypeDesc(DBPDataKind.NUMERIC, Types.SMALLINT, 38, 127, -84));
+		PREDEFINED_TYPES.put("TABLE", new TypeDesc(DBPDataKind.OBJECT, Types.OTHER, 0, 0, 0));
+		PREDEFINED_TYPES.put("TIME", new TypeDesc(DBPDataKind.DATETIME, Types.TIMESTAMP, 0, 0, 0));
+		PREDEFINED_TYPES.put("TIME WITH TZ", new TypeDesc(DBPDataKind.DATETIME, Types.TIMESTAMP, 0, 0, 0));
+		PREDEFINED_TYPES.put("TIMESTAMP", new TypeDesc(DBPDataKind.DATETIME, Types.TIMESTAMP, 0, 0, 0));
+		PREDEFINED_TYPES.put("TIMESTAMP WITH LOCAL TZ",
+				new TypeDesc(DBPDataKind.DATETIME, OracleConstants.DATA_TYPE_TIMESTAMP_WITH_LOCAL_TIMEZONE, 0, 0, 0));
+		PREDEFINED_TYPES.put("TIMESTAMP WITH TZ",
+				new TypeDesc(DBPDataKind.DATETIME, OracleConstants.DATA_TYPE_TIMESTAMP_WITH_TIMEZONE, 0, 0, 0));
+		PREDEFINED_TYPES.put("TIMESTAMP WITH LOCAL TIME ZONE",
+				new TypeDesc(DBPDataKind.DATETIME, OracleConstants.DATA_TYPE_TIMESTAMP_WITH_LOCAL_TIMEZONE, 0, 0, 0));
+		PREDEFINED_TYPES.put("TIMESTAMP WITH TIME ZONE",
+				new TypeDesc(DBPDataKind.DATETIME, OracleConstants.DATA_TYPE_TIMESTAMP_WITH_TIMEZONE, 0, 0, 0));
+		// PREDEFINED_TYPES.put("UNSIGNED BINARY INTEGER", new
+		// TypeDesc(DBPDataKind.NUMERIC, Types.BIGINT, 38, 127, -84)); can not be
+		// created as a data type
+		PREDEFINED_TYPES.put("UROWID", new TypeDesc(DBPDataKind.ROWID, Types.ROWID, 0, 0, 0));
+		PREDEFINED_TYPES.put("VARCHAR", new TypeDesc(DBPDataKind.STRING, Types.VARCHAR, 0, 0, 0));
+		PREDEFINED_TYPES.put("VARCHAR2", new TypeDesc(DBPDataKind.STRING, Types.VARCHAR, 0, 0, 0));
+		PREDEFINED_TYPES.put("VARYING ARRAY", new TypeDesc(DBPDataKind.ARRAY, Types.ARRAY, 0, 0, 0));
 
-        public TypeDesc(@NotNull DBPDataKind dataKind, int valueType, int precision, int minScale, int maxScale) {
-            this(dataKind, valueType, precision, minScale, maxScale, -1, -1);
-        }
+		PREDEFINED_TYPES.put("VARRAY", new TypeDesc(DBPDataKind.ARRAY, Types.ARRAY, 0, 0, 0));
+		PREDEFINED_TYPES.put("ROWID", new TypeDesc(DBPDataKind.ROWID, Types.ROWID, 0, 0, 0));
+		PREDEFINED_TYPES.put("LONG", new TypeDesc(DBPDataKind.BINARY, Types.LONGVARBINARY, 0, 0, 0));
+		PREDEFINED_TYPES.put("RAW", new TypeDesc(DBPDataKind.BINARY, Types.VARBINARY, 0, 0, 0));
+		PREDEFINED_TYPES.put("LONG RAW", new TypeDesc(DBPDataKind.BINARY, Types.LONGVARBINARY, 0, 0, 0));
+		PREDEFINED_TYPES.put("NVARCHAR2", new TypeDesc(DBPDataKind.STRING, Types.NVARCHAR, 0, 0, 0));
+		PREDEFINED_TYPES.put("NCHAR", new TypeDesc(DBPDataKind.STRING, Types.NCHAR, 0, 0, 0));
+		PREDEFINED_TYPES.put("NCLOB", new TypeDesc(DBPDataKind.CONTENT, Types.NCLOB, 0, 0, 0));
+		PREDEFINED_TYPES.put("LOB POINTER", new TypeDesc(DBPDataKind.CONTENT, Types.BLOB, 0, 0, 0));
 
-        private TypeDesc(
-            @NotNull DBPDataKind dataKind,
-            int valueType,
-            int precision,
-            int minScale,
-            int maxScale,
-            int serverAtLeastMajor,
-            int serverAtLeastMinor
-        ) {
-            this.dataKind = dataKind;
-            this.valueType = valueType;
-            this.precision = precision;
-            this.minScale = minScale;
-            this.maxScale = maxScale;
-            this.serverAtLeastMajor = serverAtLeastMajor;
-            this.serverAtLeastMinor = serverAtLeastMinor;
-        }
-    }
+		PREDEFINED_TYPES.put("REF CURSOR", new TypeDesc(DBPDataKind.OBJECT, -10, 0, 0, 0));
+	}
 
-    static final Map<String, TypeDesc> PREDEFINED_TYPES = new HashMap<>();
-    static  {
-        PREDEFINED_TYPES.put("BFILE", new TypeDesc(DBPDataKind.CONTENT, Types.OTHER, 0, 0, 0));
-        PREDEFINED_TYPES.put("BINARY ROWID", new TypeDesc(DBPDataKind.ROWID, Types.ROWID, 0, 0, 0));
-        PREDEFINED_TYPES.put("BINARY_DOUBLE", new TypeDesc(DBPDataKind.NUMERIC, Types.DOUBLE, 38, 127, -84));
-        PREDEFINED_TYPES.put("BINARY_FLOAT", new TypeDesc(DBPDataKind.NUMERIC, Types.FLOAT, 38, 127, -84));
-        PREDEFINED_TYPES.put("BLOB", new TypeDesc(DBPDataKind.CONTENT, Types.BLOB, 0, 0, 0));
-        PREDEFINED_TYPES.put("BOOLEAN", new TypeDesc(DBPDataKind.BOOLEAN, Types.BOOLEAN, 0, 0, 0, 23, 0));
-        PREDEFINED_TYPES.put("CANONICAL", new TypeDesc(DBPDataKind.UNKNOWN, Types.OTHER, 0, 0, 0));
-        PREDEFINED_TYPES.put("CFILE", new TypeDesc(DBPDataKind.CONTENT, Types.OTHER, 0, 0, 0));
-        PREDEFINED_TYPES.put("CHAR", new TypeDesc(DBPDataKind.STRING, Types.CHAR, 0, 0, 0));
-        PREDEFINED_TYPES.put("CLOB", new TypeDesc(DBPDataKind.CONTENT, Types.CLOB, 0, 0, 0));
-        PREDEFINED_TYPES.put("JSON", new TypeDesc(DBPDataKind.CONTENT, Types.OTHER, 0, 0, 0));
-        PREDEFINED_TYPES.put("CONTIGUOUS ARRAY", new TypeDesc(DBPDataKind.ARRAY, Types.ARRAY, 0, 0, 0));
-        // DATE IS TIMESTAMP. It always keeps time value. But sometimes it is visualized as DATE (see #2457)
-        PREDEFINED_TYPES.put("DATE", new TypeDesc(DBPDataKind.DATETIME, Types.TIMESTAMP, 0, 0, 0));
-        PREDEFINED_TYPES.put("DECIMAL", new TypeDesc(DBPDataKind.NUMERIC, Types.DECIMAL, 38, 127, -84));
-        PREDEFINED_TYPES.put("DOUBLE PRECISION", new TypeDesc(DBPDataKind.NUMERIC, Types.DOUBLE, 38, 127, -84));
-        PREDEFINED_TYPES.put("FLOAT", new TypeDesc(DBPDataKind.NUMERIC, Types.FLOAT, 38, 127, -84));
-        PREDEFINED_TYPES.put("INTEGER", new TypeDesc(DBPDataKind.NUMERIC, Types.INTEGER, 38, 127, -84));
-        PREDEFINED_TYPES.put("INTERVAL DAY TO SECOND", new TypeDesc(DBPDataKind.STRING, Types.VARCHAR, 0, 0, 0));
-        PREDEFINED_TYPES.put("INTERVAL YEAR TO MONTH", new TypeDesc(DBPDataKind.STRING, Types.VARCHAR, 0, 0, 0));
-        PREDEFINED_TYPES.put("CONTENT POINTER", new TypeDesc(DBPDataKind.CONTENT, Types.BLOB, 0, 0, 0));
-        PREDEFINED_TYPES.put("NAMED COLLECTION", new TypeDesc(DBPDataKind.ARRAY, Types.ARRAY, 0, 0, 0));
-        PREDEFINED_TYPES.put("NAMED OBJECT", new TypeDesc(DBPDataKind.OBJECT, Types.STRUCT, 0, 0, 0));
-        PREDEFINED_TYPES.put("NUMBER", new TypeDesc(DBPDataKind.NUMERIC, Types.NUMERIC, 38, 127, -84));
-        PREDEFINED_TYPES.put("OCTET", new TypeDesc(DBPDataKind.BINARY, Types.OTHER, 0, 0, 0));
-        PREDEFINED_TYPES.put("OID", new TypeDesc(DBPDataKind.STRING, Types.VARCHAR, 0, 0, 0));
-        PREDEFINED_TYPES.put("POINTER", new TypeDesc(DBPDataKind.UNKNOWN, Types.OTHER, 0, 0, 0));
-        PREDEFINED_TYPES.put("REAL", new TypeDesc(DBPDataKind.NUMERIC, Types.REAL, 38, 127, -84));
-        PREDEFINED_TYPES.put("REF", new TypeDesc(DBPDataKind.REFERENCE, Types.OTHER, 0, 0, 0));
-        //PREDEFINED_TYPES.put("SIGNED BINARY INTEGER", new TypeDesc(DBPDataKind.NUMERIC, Types.INTEGER, 38, 127, -84)); can not be created as a data type
-        PREDEFINED_TYPES.put("SMALLINT", new TypeDesc(DBPDataKind.NUMERIC, Types.SMALLINT, 38, 127, -84));
-        PREDEFINED_TYPES.put("TABLE", new TypeDesc(DBPDataKind.OBJECT, Types.OTHER, 0, 0, 0));
-        PREDEFINED_TYPES.put("TIME", new TypeDesc(DBPDataKind.DATETIME, Types.TIMESTAMP, 0, 0, 0));
-        PREDEFINED_TYPES.put("TIME WITH TZ", new TypeDesc(DBPDataKind.DATETIME, Types.TIMESTAMP, 0, 0, 0));
-        PREDEFINED_TYPES.put("TIMESTAMP", new TypeDesc(DBPDataKind.DATETIME, Types.TIMESTAMP, 0, 0, 0));
-        PREDEFINED_TYPES.put("TIMESTAMP WITH LOCAL TZ", new TypeDesc(DBPDataKind.DATETIME, OracleConstants.DATA_TYPE_TIMESTAMP_WITH_LOCAL_TIMEZONE, 0, 0, 0));
-        PREDEFINED_TYPES.put("TIMESTAMP WITH TZ", new TypeDesc(DBPDataKind.DATETIME, OracleConstants.DATA_TYPE_TIMESTAMP_WITH_TIMEZONE, 0, 0, 0));
-        PREDEFINED_TYPES.put("TIMESTAMP WITH LOCAL TIME ZONE", new TypeDesc(DBPDataKind.DATETIME, OracleConstants.DATA_TYPE_TIMESTAMP_WITH_LOCAL_TIMEZONE, 0, 0, 0));
-        PREDEFINED_TYPES.put("TIMESTAMP WITH TIME ZONE", new TypeDesc(DBPDataKind.DATETIME, OracleConstants.DATA_TYPE_TIMESTAMP_WITH_TIMEZONE, 0, 0, 0));
-        //PREDEFINED_TYPES.put("UNSIGNED BINARY INTEGER", new TypeDesc(DBPDataKind.NUMERIC, Types.BIGINT, 38, 127, -84)); can not be created as a data type
-        PREDEFINED_TYPES.put("UROWID", new TypeDesc(DBPDataKind.ROWID, Types.ROWID, 0, 0, 0));
-        PREDEFINED_TYPES.put("VARCHAR", new TypeDesc(DBPDataKind.STRING, Types.VARCHAR, 0, 0, 0));
-        PREDEFINED_TYPES.put("VARCHAR2", new TypeDesc(DBPDataKind.STRING, Types.VARCHAR, 0, 0, 0));
-        PREDEFINED_TYPES.put("VARYING ARRAY", new TypeDesc(DBPDataKind.ARRAY, Types.ARRAY, 0, 0, 0));
+	private String typeCode;
+	private byte[] typeOID;
+	private Object superType;
+	private final AttributeCache attributeCache;
+	protected MethodCache methodCache;
+	protected boolean flagPredefined;
+	private boolean flagIncomplete;
+	private boolean flagFinal;
+	private boolean flagInstantiable;
+	private TypeDesc typeDesc;
+	private int valueType = java.sql.Types.OTHER;
+	protected String sourceDeclaration;
+	protected String sourceDefinition;
+	private OracleDataType componentType;
+	protected boolean hasMethods;
 
-        PREDEFINED_TYPES.put("VARRAY", new TypeDesc(DBPDataKind.ARRAY, Types.ARRAY, 0, 0, 0));
-        PREDEFINED_TYPES.put("ROWID", new TypeDesc(DBPDataKind.ROWID, Types.ROWID, 0, 0, 0));
-        PREDEFINED_TYPES.put("LONG", new TypeDesc(DBPDataKind.BINARY, Types.LONGVARBINARY, 0, 0, 0));
-        PREDEFINED_TYPES.put("RAW", new TypeDesc(DBPDataKind.BINARY, Types.VARBINARY, 0, 0, 0));
-        PREDEFINED_TYPES.put("LONG RAW", new TypeDesc(DBPDataKind.BINARY, Types.LONGVARBINARY, 0, 0, 0));
-        PREDEFINED_TYPES.put("NVARCHAR2", new TypeDesc(DBPDataKind.STRING, Types.NVARCHAR, 0, 0, 0));
-        PREDEFINED_TYPES.put("NCHAR", new TypeDesc(DBPDataKind.STRING, Types.NCHAR, 0, 0, 0));
-        PREDEFINED_TYPES.put("NCLOB", new TypeDesc(DBPDataKind.CONTENT, Types.NCLOB, 0, 0, 0));
-        PREDEFINED_TYPES.put("LOB POINTER", new TypeDesc(DBPDataKind.CONTENT, Types.BLOB, 0, 0, 0));
+	public static class TypeDesc {
+		final DBPDataKind dataKind;
+		public final int valueType;
+		final int precision;
+		final int minScale;
+		final int maxScale;
+		final int serverAtLeastMajor;
+		final int serverAtLeastMinor;
 
-        PREDEFINED_TYPES.put("REF CURSOR", new TypeDesc(DBPDataKind.OBJECT, -10, 0, 0, 0));
-    }
-    
-    private String typeCode;
-    private byte[] typeOID;
-    private Object superType;
-    private final AttributeCache attributeCache;
-    protected MethodCache methodCache;
-    protected boolean flagPredefined;
-    private boolean flagIncomplete;
-    private boolean flagFinal;
-    private boolean flagInstantiable;
-    private TypeDesc typeDesc;
-    private int valueType = java.sql.Types.OTHER;
-    protected String sourceDeclaration;
-    protected String sourceDefinition;
-    private OracleDataType componentType;
-    
-    protected boolean hasMethods;
+		public TypeDesc(@NotNull DBPDataKind dataKind, int valueType, int precision, int minScale, int maxScale) {
+			this(dataKind, valueType, precision, minScale, maxScale, -1, -1);
+		}
 
-    public OracleDataType(DBSObject owner, String typeName, boolean persisted)
-    {
-        super(owner, typeName, persisted);
-        this.attributeCache = new AttributeCache();
-        this.methodCache = new MethodCache();
-        if (owner instanceof OracleDataSource) {
-            flagPredefined = true;
-            findTypeDesc(typeName);
-        }
-    }
+		private TypeDesc(@NotNull DBPDataKind dataKind, int valueType, int precision, int minScale, int maxScale,
+				int serverAtLeastMajor, int serverAtLeastMinor) {
+			this.dataKind = dataKind;
+			this.valueType = valueType;
+			this.precision = precision;
+			this.minScale = minScale;
+			this.maxScale = maxScale;
+			this.serverAtLeastMajor = serverAtLeastMajor;
+			this.serverAtLeastMinor = serverAtLeastMinor;
+		}
+	}
 
-    public OracleDataType(DBSObject owner, ResultSet dbResult)
-    {
-        super(owner, JDBCUtils.safeGetString(dbResult, "TYPE_NAME"), true);
-        this.typeCode = JDBCUtils.safeGetString(dbResult, "TYPECODE");
-        this.typeOID = JDBCUtils.safeGetBytes(dbResult, "TYPE_OID");
-        this.flagPredefined = JDBCUtils.safeGetBoolean(dbResult, "PREDEFINED", OracleConstants.YES);
-        this.flagIncomplete = JDBCUtils.safeGetBoolean(dbResult, "INCOMPLETE", OracleConstants.YES);
-        this.flagFinal = JDBCUtils.safeGetBoolean(dbResult, "FINAL", OracleConstants.YES);
-        this.flagInstantiable = JDBCUtils.safeGetBoolean(dbResult, "INSTANTIABLE", OracleConstants.YES);
-        String superTypeOwner = JDBCUtils.safeGetString(dbResult, "SUPERTYPE_OWNER");
-        boolean hasAttributes;
-        if (!CommonUtils.isEmpty(superTypeOwner)) {
-            this.superType = new OracleLazyReference(
-                superTypeOwner,
-                JDBCUtils.safeGetString(dbResult, "SUPERTYPE_NAME"));
-            hasAttributes = JDBCUtils.safeGetInt(dbResult, "LOCAL_ATTRIBUTES") > 0;
-            this.hasMethods = JDBCUtils.safeGetInt(dbResult, "LOCAL_METHODS") > 0;
-        } else {
-            hasAttributes = JDBCUtils.safeGetInt(dbResult, "ATTRIBUTES") > 0;
-            this.hasMethods = JDBCUtils.safeGetInt(dbResult, "METHODS") > 0;
-        }
-        attributeCache = hasAttributes ? new AttributeCache() : null;
-        methodCache = this.hasMethods ? new MethodCache() : null;
-        
-        if (owner instanceof OracleDataSource && flagPredefined) {
-            // Determine value type for predefined types
-            findTypeDesc(name);
-        } else {
-            if (TYPE_CODE_COLLECTION.equals(this.typeCode)) {
-                this.valueType = java.sql.Types.ARRAY;
-            } else if (TYPE_CODE_OBJECT.equals(this.typeCode)) {
-                this.valueType = java.sql.Types.STRUCT;
-            } else {
-                if (this.name.equals(OracleConstants.TYPE_NAME_XML) && owner.getName().equals(OracleConstants.SCHEMA_SYS)) {
-                    this.valueType = java.sql.Types.SQLXML;
-                }
-            }
-        }
-    }
+	public OracleDataType(DBSObject owner, String typeName, boolean persisted) {
+		super(owner, typeName, persisted);
+		this.attributeCache = new AttributeCache();
+		this.methodCache = new MethodCache();
+		if (owner instanceof OracleDataSource) {
+			flagPredefined = true;
+			findTypeDesc(typeName);
+		}
+	}
 
-    // Use by tree navigator thru reflection
-    public boolean hasMethods()
-    {
-        return methodCache != null;
-    }
-    // Use by tree navigator thru reflection
-    public boolean hasAttributes()
-    {
-        return attributeCache != null;
-    }
+	public OracleDataType(DBSObject owner, ResultSet dbResult) {
+		super(owner, JDBCUtils.safeGetString(dbResult, "TYPE_NAME"), true);
+		this.typeCode = JDBCUtils.safeGetString(dbResult, "TYPECODE");
+		this.typeOID = JDBCUtils.safeGetBytes(dbResult, "TYPE_OID");
+		this.flagPredefined = JDBCUtils.safeGetBoolean(dbResult, "PREDEFINED", OracleConstants.YES);
+		this.flagIncomplete = JDBCUtils.safeGetBoolean(dbResult, "INCOMPLETE", OracleConstants.YES);
+		this.flagFinal = JDBCUtils.safeGetBoolean(dbResult, "FINAL", OracleConstants.YES);
+		this.flagInstantiable = JDBCUtils.safeGetBoolean(dbResult, "INSTANTIABLE", OracleConstants.YES);
+		String superTypeOwner = JDBCUtils.safeGetString(dbResult, "SUPERTYPE_OWNER");
+		boolean hasAttributes;
+		if (!CommonUtils.isEmpty(superTypeOwner)) {
+			this.superType = new OracleLazyReference(superTypeOwner,
+					JDBCUtils.safeGetString(dbResult, "SUPERTYPE_NAME"));
+			hasAttributes = JDBCUtils.safeGetInt(dbResult, "LOCAL_ATTRIBUTES") > 0;
+			this.hasMethods = JDBCUtils.safeGetInt(dbResult, "LOCAL_METHODS") > 0;
+		} else {
+			hasAttributes = JDBCUtils.safeGetInt(dbResult, "ATTRIBUTES") > 0;
+			this.hasMethods = JDBCUtils.safeGetInt(dbResult, "METHODS") > 0;
+		}
+		attributeCache = hasAttributes ? new AttributeCache() : null;
+		methodCache = this.hasMethods ? new MethodCache() : null;
 
-    private boolean findTypeDesc(String typeName)
-    {
-        if (typeName.startsWith("PL/SQL")) {
-            // Don't care about PL/SQL types
-            return true;
-        }
-        typeName = normalizeTypeName(typeName);
-        this.typeDesc = PREDEFINED_TYPES.get(typeName);
-        if (this.typeDesc == null) {
-            log.warn("Unknown predefined type: " + typeName);
-            return false;
-        } else {
-            this.valueType = this.typeDesc.valueType;
-            return true;
-        }
-    }
+		if (owner instanceof OracleDataSource && flagPredefined) {
+			// Determine value type for predefined types
+			findTypeDesc(name);
+		} else {
+			if (TYPE_CODE_COLLECTION.equals(this.typeCode)) {
+				this.valueType = java.sql.Types.ARRAY;
+			} else if (TYPE_CODE_OBJECT.equals(this.typeCode)) {
+				this.valueType = java.sql.Types.STRUCT;
+			} else {
+				if (this.name.equals(OracleConstants.TYPE_NAME_XML)
+						&& owner.getName().equals(OracleConstants.SCHEMA_SYS)) {
+					this.valueType = java.sql.Types.SQLXML;
+				}
+			}
+		}
+	}
 
-    @Nullable
-    public static DBPDataKind getDataKind(String typeName)
-    {
-        TypeDesc desc = PREDEFINED_TYPES.get(typeName);
-        return desc != null ? desc.dataKind : null;
-    }
+	// Use by tree navigator thru reflection
+	public boolean hasMethods() {
+		return methodCache != null;
+	}
 
-    @Nullable
-    @Override
-    public OracleSchema getSchema()
-    {
-        return parent instanceof OracleSchema ? (OracleSchema)parent : null;
-    }
+	// Use by tree navigator thru reflection
+	public boolean hasAttributes() {
+		return attributeCache != null;
+	}
 
-    @Override
-    public OracleSourceType getSourceType()
-    {
-        return OracleSourceType.TYPE;
-    }
+	private boolean findTypeDesc(String typeName) {
+		if (typeName.startsWith("PL/SQL")) {
+			// Don't care about PL/SQL types
+			return true;
+		}
+		typeName = normalizeTypeName(typeName);
+		this.typeDesc = PREDEFINED_TYPES.get(typeName);
+		if (this.typeDesc == null) {
+			log.warn("Unknown predefined type: " + typeName);
+			return false;
+		} else {
+			this.valueType = this.typeDesc.valueType;
+			return true;
+		}
+	}
 
-    @NotNull
-    @Override
-    @Property(hidden = true, editable = true, updatable = true, order = -1)
-    public String getObjectDefinitionText(@NotNull DBRProgressMonitor monitor, @NotNull Map<String, Object> options) throws DBCException
-    {
-        if (flagPredefined) {
-            return "-- Source code not available";
-        }
-        if (sourceDeclaration == null && monitor != null) {
-            sourceDeclaration = OracleUtils.getSource(monitor, this, false, true);
-        }
-        return sourceDeclaration;
-    }
+	@Nullable
+	public static DBPDataKind getDataKind(String typeName) {
+		TypeDesc desc = PREDEFINED_TYPES.get(typeName);
+		return desc != null ? desc.dataKind : null;
+	}
 
-    public void setObjectDefinitionText(String sourceDeclaration)
-    {
-        this.sourceDeclaration = sourceDeclaration;
-    }
+	@Nullable
+	@Override
+	public OracleSchema getSchema() {
+		return parent instanceof OracleSchema ? (OracleSchema) parent : null;
+	}
 
-    @Override
-    public DBEPersistAction[] getCompileActions(DBRProgressMonitor monitor) throws DBCException {
-        if (!isPredefined()) {
-            return new DBEPersistAction[]{
-                    new OracleObjectPersistAction(
-                            OracleObjectType.VIEW,
-                            "Compile type",
-                            "ALTER TYPE " + getFullyQualifiedName(DBPEvaluationContext.DDL) + " COMPILE"
-                    )};
-        } else {
-            throw new DBCException("Can't compile " + getName() + ". Compilation works only for user-defined types.");
-        }
-    }
+	@Override
+	public OracleSourceType getSourceType() {
+		return OracleSourceType.TYPE;
+	}
 
-    @NotNull
-    @Override
-    @Property(hidden = true, editable = true, updatable = true, order = -1)
-    public String getExtendedDefinitionText(@NotNull DBRProgressMonitor monitor) throws DBException
-    {
-        if (sourceDefinition == null && monitor != null) {
-            sourceDefinition = OracleUtils.getSource(monitor, this, true, false);
-        }
-        return sourceDefinition;
-    }
+	@NotNull
+	@Override
+	@Property(hidden = true, editable = true, updatable = true, order = -1)
+	public String getObjectDefinitionText(@NotNull DBRProgressMonitor monitor, @NotNull Map<String, Object> options)
+			throws DBCException {
+		if (flagPredefined) {
+			return "-- Source code not available";
+		}
+		if (sourceDeclaration == null && monitor != null) {
+			sourceDeclaration = OracleUtils.getSource(monitor, this, false, true);
+		}
+		return sourceDeclaration;
+	}
 
-    public void setExtendedDefinitionText(String source)
-    {
-        this.sourceDefinition = source;
-    }
+	public void setObjectDefinitionText(String sourceDeclaration) {
+		this.sourceDeclaration = sourceDeclaration;
+	}
 
-    @NotNull
-    @Override
-    public String getTypeName()
-    {
-        return getFullyQualifiedName(DBPEvaluationContext.DDL);
-    }
+	@Override
+	public DBEPersistAction[] getCompileActions(DBRProgressMonitor monitor) throws DBCException {
+		if (!isPredefined()) {
+			return new DBEPersistAction[] { new OracleObjectPersistAction(OracleObjectType.VIEW, "Compile type",
+					"ALTER TYPE " + getFullyQualifiedName(DBPEvaluationContext.DDL) + " COMPILE") };
+		} else {
+			throw new DBCException("Can't compile " + getName() + ". Compilation works only for user-defined types.");
+		}
+	}
 
-    @NotNull
-    @Override
-    public String getFullTypeName() {
-        return DBUtils.getFullTypeName(this);
-    }
+	@NotNull
+	@Override
+	@Property(hidden = true, editable = true, updatable = true, order = -1)
+	public String getExtendedDefinitionText(@NotNull DBRProgressMonitor monitor) throws DBException {
+		if (sourceDefinition == null && monitor != null) {
+			sourceDefinition = OracleUtils.getSource(monitor, this, true, false);
+		}
+		return sourceDefinition;
+	}
 
-    @Override
-    public int getTypeID()
-    {
-        return valueType;
-    }
+	public void setExtendedDefinitionText(String source) {
+		this.sourceDefinition = source;
+	}
 
-    @NotNull
-    @Override
-    public DBPDataKind getDataKind()
-    {
-        return JDBCUtils.resolveDataKind(getDataSource(), getName(), valueType);
-    }
+	@NotNull
+	@Override
+	public String getTypeName() {
+		return getFullyQualifiedName(DBPEvaluationContext.DDL);
+	}
 
-    @Nullable
-    @Override
-    public Integer getScale()
-    {
-        return typeDesc == null ? 0 : typeDesc.minScale;
-    }
+	@NotNull
+	@Override
+	public String getFullTypeName() {
+		return DBUtils.getFullTypeName(this);
+	}
 
-    @Override
-    public Integer getPrecision()
-    {
-        return typeDesc == null ? 0 : typeDesc.precision;
-    }
+	@Override
+	public int getTypeID() {
+		return valueType;
+	}
 
-    @Override
-    public long getMaxLength()
-    {
-        return CommonUtils.toInt(getPrecision());
-    }
+	@NotNull
+	@Override
+	public DBPDataKind getDataKind() {
+		return JDBCUtils.resolveDataKind(getDataSource(), getName(), valueType);
+	}
 
-    @Override
-    public long getTypeModifiers() {
-        return 0;
-    }
+	@Nullable
+	@Override
+	public Integer getScale() {
+		return typeDesc == null ? 0 : typeDesc.minScale;
+	}
 
-    @Override
-    public int getMinScale()
-    {
-        return typeDesc == null ? 0 : typeDesc.minScale;
-    }
+	@Override
+	public Integer getPrecision() {
+		return typeDesc == null ? 0 : typeDesc.precision;
+	}
 
-    @Override
-    public int getMaxScale()
-    {
-        return typeDesc == null ? 0 : typeDesc.maxScale;
-    }
+	@Override
+	public long getMaxLength() {
+		return CommonUtils.toInt(getPrecision());
+	}
 
-    @NotNull
-    @Override
-    public DBCLogicalOperator[] getSupportedOperators(@NotNull DBSTypedObject attribute) {
-        return DBUtils.getDefaultOperators(this);
-    }
+	@Override
+	public long getTypeModifiers() {
+		return 0;
+	}
 
-    @Override
-    public DBSObject getParentObject()
-    {
-        return parent instanceof OracleSchema ?
-            parent :
-            parent instanceof OracleDataSource ? ((OracleDataSource) parent).getContainer() : null;
-    }
+	@Override
+	public int getMinScale() {
+		return typeDesc == null ? 0 : typeDesc.minScale;
+	}
 
-    @NotNull
-    @Override
-    @Property(viewable = true, editable = true, valueTransformer = DBObjectNameCaseTransformer.class, order = 1)
-    public String getName()
-    {
-        return name;
-    }
+	@Override
+	public int getMaxScale() {
+		return typeDesc == null ? 0 : typeDesc.maxScale;
+	}
 
-    @Property(viewable = true, editable = true, order = 2)
-    public String getTypeCode()
-    {
-        return typeCode;
-    }
+	@NotNull
+	@Override
+	public DBCLogicalOperator[] getSupportedOperators(@NotNull DBSTypedObject attribute) {
+		return DBUtils.getDefaultOperators(this);
+	}
 
-    @Property(hidden = true, viewable = false, editable = false)
-    public byte[] getTypeOID()
-    {
-        return typeOID;
-    }
+	@Override
+	public DBSObject getParentObject() {
+		return parent instanceof OracleSchema ? parent
+				: parent instanceof OracleDataSource ? ((OracleDataSource) parent).getContainer() : null;
+	}
 
-    @Property(viewable = true, editable = true, order = 3)
-    public OracleDataType getSuperType(DBRProgressMonitor monitor)
-    {
-        if (superType  == null) {
-            return null;
-        } else if (superType instanceof OracleDataType) {
-            return (OracleDataType)superType;
-        } else {
-            try {
-                OracleLazyReference olr = (OracleLazyReference) superType;
-                final OracleSchema superSchema = getDataSource().getSchema(monitor, olr.schemaName);
-                if (superSchema == null) {
-                    log.warn("Referenced schema '" + olr.schemaName + "' not found for super type '" + olr.objectName + "'");
-                } else {
-                    superType = superSchema.getDataTypeCache().getObject(monitor, superSchema, olr.objectName);
-                    if (superType == null) {
-                        log.warn("Referenced type '" + olr.objectName + "' not found in schema '" + olr.schemaName + "'");
-                    } else {
-                        return (OracleDataType)superType;
-                    }
-                }
-            } catch (DBException e) {
-                log.error(e);
-            }
-            superType = null;
-            return null;
-        }
-    }
+	@NotNull
+	@Override
+	@Property(viewable = true, editable = true, valueTransformer = DBObjectNameCaseTransformer.class, order = 1)
+	public String getName() {
+		return name;
+	}
 
-    @Property(viewable = true, order = 4)
-    public boolean isPredefined()
-    {
-        return flagPredefined;
-    }
+	@Property(viewable = true, editable = true, order = 2)
+	public String getTypeCode() {
+		return typeCode;
+	}
 
-    @Property(viewable = true, order = 5)
-    public boolean isIncomplete()
-    {
-        return flagIncomplete;
-    }
+	@Property(hidden = true, viewable = false, editable = false)
+	public byte[] getTypeOID() {
+		return typeOID;
+	}
 
-    @Property(viewable = true, order = 6)
-    public boolean isFinal()
-    {
-        return flagFinal;
-    }
+	@Property(viewable = true, editable = true, order = 3)
+	public OracleDataType getSuperType(DBRProgressMonitor monitor) {
+		if (superType == null) {
+			return null;
+		} else if (superType instanceof OracleDataType) {
+			return (OracleDataType) superType;
+		} else {
+			try {
+				OracleLazyReference olr = (OracleLazyReference) superType;
+				final OracleSchema superSchema = getDataSource().getSchema(monitor, olr.schemaName);
+				if (superSchema == null) {
+					log.warn("Referenced schema '" + olr.schemaName + "' not found for super type '" + olr.objectName
+							+ "'");
+				} else {
+					superType = superSchema.getDataTypeCache().getObject(monitor, superSchema, olr.objectName);
+					if (superType == null) {
+						log.warn("Referenced type '" + olr.objectName + "' not found in schema '" + olr.schemaName
+								+ "'");
+					} else {
+						return (OracleDataType) superType;
+					}
+				}
+			} catch (DBException e) {
+				log.error(e);
+			}
+			superType = null;
+			return null;
+		}
+	}
 
-    @Property(viewable = true, order = 7)
-    public boolean isInstantiable()
-    {
-        return flagInstantiable;
-    }
+	@Property(viewable = true, order = 4)
+	public boolean isPredefined() {
+		return flagPredefined;
+	}
 
-    @NotNull
-    @Override
-    public DBSEntityType getEntityType()
-    {
-        return DBSEntityType.TYPE;
-    }
+	@Property(viewable = true, order = 5)
+	public boolean isIncomplete() {
+		return flagIncomplete;
+	}
 
-    @Override
-    @Association
-    public List<OracleDataTypeAttribute> getAttributes(@NotNull DBRProgressMonitor monitor)
-        throws DBException
-    {
-        return !supportsAttributes() || attributeCache == null ? null : attributeCache.getAllObjects(monitor, this);
-    }
+	@Property(viewable = true, order = 6)
+	public boolean isFinal() {
+		return flagFinal;
+	}
 
-    private boolean supportsAttributes() {
-        return getTypeID() == Types.STRUCT;
-    }
-    
-    @Nullable
-    @Override
-    public Collection<? extends DBSEntityConstraint> getConstraints(@NotNull DBRProgressMonitor monitor) throws DBException
-    {
-        return null;
-    }
+	@Property(viewable = true, order = 7)
+	public boolean isInstantiable() {
+		return flagInstantiable;
+	}
 
-    @Override
-    public OracleDataTypeAttribute getAttribute(@NotNull DBRProgressMonitor monitor, @NotNull String attributeName) throws DBException
-    {
-        return attributeCache != null ? attributeCache.getObject(monitor, this, attributeName) : null;
-    }
+	@NotNull
+	@Override
+	public DBSEntityType getEntityType() {
+		return DBSEntityType.TYPE;
+	}
 
-    @Nullable
-    @Association
-    public Collection<OracleDataTypeMethod> getMethods(DBRProgressMonitor monitor)
-        throws DBException
-    {
-        return methodCache != null ? methodCache.getAllObjects(monitor, this) : null;
-    }
+	@Override
+	@Association
+	public List<OracleDataTypeAttribute> getAttributes(@NotNull DBRProgressMonitor monitor) throws DBException {
+		return !supportsAttributes() || attributeCache == null ? null : attributeCache.getAllObjects(monitor, this);
+	}
 
-    @Override
-    public Collection<? extends DBSEntityAssociation> getAssociations(@NotNull DBRProgressMonitor monitor) throws DBException
-    {
-        return null;
-    }
+	private boolean supportsAttributes() {
+		return getTypeID() == Types.STRUCT;
+	}
 
-    @Override
-    public Collection<? extends DBSEntityAssociation> getReferences(@NotNull DBRProgressMonitor monitor) throws DBException
-    {
-        return null;
-    }
+	@Nullable
+	@Override
+	public Collection<? extends DBSEntityConstraint> getConstraints(@NotNull DBRProgressMonitor monitor)
+			throws DBException {
+		return null;
+	}
 
-    @Nullable
-    @Override
-    public Object geTypeExtension() {
-        return typeOID;
-    }
+	@Override
+	public OracleDataTypeAttribute getAttribute(@NotNull DBRProgressMonitor monitor, @NotNull String attributeName)
+			throws DBException {
+		return attributeCache != null ? attributeCache.getObject(monitor, this, attributeName) : null;
+	}
 
-    @Property(viewable = true, order = 8)
-    public OracleDataType getComponentType(@NotNull DBRProgressMonitor monitor)
-        throws DBException
-    {
-        if (componentType != null) {
-            return componentType;
-        }
-        OracleSchema schema = getSchema();
-        if (schema == null || !TYPE_CODE_COLLECTION.equals(typeCode) || !getDataSource().isAtLeastV10()) {
-            return null;
-        }
-        try (JDBCSession session = DBUtils.openMetaSession(monitor, this, "Load collection types")) {
-            try (JDBCPreparedStatement dbStat = session.prepareStatement(
-                "SELECT ELEM_TYPE_OWNER,ELEM_TYPE_NAME,ELEM_TYPE_MOD FROM " +
-                    OracleUtils.getSysSchemaPrefix(getDataSource()) + "ALL_COLL_TYPES WHERE OWNER=? AND TYPE_NAME=?"))
-            {
-                dbStat.setString(1, schema.getName());
-                dbStat.setString(2, getName());
-                try (JDBCResultSet dbResults = dbStat.executeQuery()) {
-                    if (dbResults.next()) {
-                        String compTypeSchema = JDBCUtils.safeGetString(dbResults, "ELEM_TYPE_OWNER");
-                        String compTypeName = JDBCUtils.safeGetString(dbResults, "ELEM_TYPE_NAME");
-                        //String compTypeMod = JDBCUtils.safeGetString(dbResults, "ELEM_TYPE_MOD");
-                        componentType = OracleDataType.resolveDataType(monitor, getDataSource(), compTypeSchema, compTypeName);
-                    } else {
-                        log.warn("Can't resolve collection type [" + getName() + "]");
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Error reading collection types", e);
-        }
+	@Nullable
+	@Association
+	public Collection<OracleDataTypeMethod> getMethods(DBRProgressMonitor monitor) throws DBException {
+		return methodCache != null ? methodCache.getAllObjects(monitor, this) : null;
+	}
 
-        return componentType;
-    }
+	@Override
+	public Collection<? extends DBSEntityAssociation> getAssociations(@NotNull DBRProgressMonitor monitor)
+			throws DBException {
+		return null;
+	}
 
-    @NotNull
-    @Override
-    public String getFullyQualifiedName(@NotNull DBPEvaluationContext context)
-    {
-        return parent instanceof OracleSchema ?
-            DBUtils.getFullQualifiedName(getDataSource(), parent, this) :
-            name;
-    }
+	@Override
+	public Collection<? extends DBSEntityAssociation> getReferences(@NotNull DBRProgressMonitor monitor)
+			throws DBException {
+		return null;
+	}
 
-    @Override
-    public String toString()
-    {
-        return getFullyQualifiedName(DBPEvaluationContext.UI);
-    }
+	@Nullable
+	@Override
+	public Object geTypeExtension() {
+		return typeOID;
+	}
 
-    public static OracleDataType resolveDataType(DBRProgressMonitor monitor, OracleDataSource dataSource, String typeOwner, String typeName)
-    {
-        typeName = normalizeTypeName(typeName);
-        OracleSchema typeSchema = null;
-        OracleDataType type = null;
-        if (typeOwner != null) {
-            try {
-                typeSchema = dataSource.getSchema(monitor, typeOwner);
-                if (typeSchema == null) {
-                    log.error("Type attr schema '" + typeOwner + "' not found");
-                } else {
-                    type = typeSchema.getDataType(monitor, typeName);
-                }
-            } catch (DBException e) {
-                log.error(e);
-            }
-        } else {
-            type = dataSource.getLocalDataType(typeName);
-        }
-        if (type == null) {
-            log.debug("Data type '" + typeName + "' not found - declare new one");
-            type = new OracleDataType(typeSchema == null ? dataSource : typeSchema, typeName, true);
-            type.flagPredefined = true;
-            if (typeSchema == null) {
-                dataSource.getDataTypeCache().cacheObject(type);
-            } else {
-                typeSchema.getDataTypeCache().cacheObject(type);
-            }
-        }
-        return type;
-    }
+	@Property(viewable = true, order = 8)
+	public OracleDataType getComponentType(@NotNull DBRProgressMonitor monitor) throws DBException {
+		if (componentType != null) {
+			return componentType;
+		}
+		OracleSchema schema = getSchema();
+		if (schema == null || !TYPE_CODE_COLLECTION.equals(typeCode) || !getDataSource().isAtLeastV10()) {
+			return null;
+		}
+		try (JDBCSession session = DBUtils.openMetaSession(monitor, this, "Load collection types")) {
+			try (JDBCPreparedStatement dbStat = session
+					.prepareStatement("SELECT ELEM_TYPE_OWNER,ELEM_TYPE_NAME,ELEM_TYPE_MOD FROM "
+							+ OracleUtils.getSysSchemaPrefix(getDataSource())
+							+ "ALL_COLL_TYPES WHERE OWNER=? AND TYPE_NAME=?")) {
+				dbStat.setString(1, schema.getName());
+				dbStat.setString(2, getName());
+				try (JDBCResultSet dbResults = dbStat.executeQuery()) {
+					if (dbResults.next()) {
+						String compTypeSchema = JDBCUtils.safeGetString(dbResults, "ELEM_TYPE_OWNER");
+						String compTypeName = JDBCUtils.safeGetString(dbResults, "ELEM_TYPE_NAME");
+						// String compTypeMod = JDBCUtils.safeGetString(dbResults, "ELEM_TYPE_MOD");
+						componentType = OracleDataType.resolveDataType(monitor, getDataSource(), compTypeSchema,
+								compTypeName);
+					} else {
+						log.warn("Can't resolve collection type [" + getName() + "]");
+					}
+				}
+			}
+		} catch (Exception e) {
+			log.warn("Error reading collection types", e);
+		}
 
-    private static String normalizeTypeName(String typeName) {
-        if (CommonUtils.isEmpty(typeName)) {
-            return "";
-        }
-        for (;;) {
-            int modIndex = typeName.indexOf('(');
-            if (modIndex == -1) {
-                break;
-            }
-            int modEnd = typeName.indexOf(')', modIndex);
-            if (modEnd == -1) {
-                break;
-            }
-            typeName = typeName.substring(0, modIndex) +
-                (modEnd == typeName.length() - 1 ? "" : typeName.substring(modEnd + 1));
-        }
-        return typeName;
-    }
+		return componentType;
+	}
 
-    @NotNull
-    @Override
-    public DBSObjectState getObjectState()
-    {
-        return DBSObjectState.NORMAL;
-    }
+	@NotNull
+	@Override
+	public String getFullyQualifiedName(@NotNull DBPEvaluationContext context) {
+		return parent instanceof OracleSchema ? DBUtils.getFullQualifiedName(getDataSource(), parent, this) : name;
+	}
 
-    @Override
-    public void refreshObjectState(@NotNull DBRProgressMonitor monitor) throws DBCException
-    {
+	@Override
+	public String toString() {
+		return getFullyQualifiedName(DBPEvaluationContext.UI);
+	}
 
-    }
+	public static OracleDataType resolveDataType(DBRProgressMonitor monitor, OracleDataSource dataSource,
+			String typeOwner, String typeName) {
+		typeName = normalizeTypeName(typeName);
+		OracleSchema typeSchema = null;
+		OracleDataType type = null;
+		if (typeOwner != null) {
+			try {
+				typeSchema = dataSource.getSchema(monitor, typeOwner);
+				if (typeSchema == null) {
+					log.error("Type attr schema '" + typeOwner + "' not found");
+				} else {
+					type = typeSchema.getDataType(monitor, typeName);
+				}
+			} catch (DBException e) {
+				log.error(e);
+			}
+		} else {
+			type = dataSource.getLocalDataType(typeName);
+		}
+		if (type == null) {
+			log.debug("Data type '" + typeName + "' not found - declare new one");
+			type = new OracleDataType(typeSchema == null ? dataSource : typeSchema, typeName, true);
+			type.flagPredefined = true;
+			if (typeSchema == null) {
+				dataSource.getDataTypeCache().cacheObject(type);
+			} else {
+				typeSchema.getDataTypeCache().cacheObject(type);
+			}
+		}
+		return type;
+	}
 
-    @Override
-    public DBPImage getObjectImage() {
-        if (OracleConstants.TYPE_NAME_JSON.equals(getName())) {
-            return DBIcon.TYPE_JSON;
-        }
-        return null;
-    }
+	private static String normalizeTypeName(String typeName) {
+		if (CommonUtils.isEmpty(typeName)) {
+			return "";
+		}
+		for (;;) {
+			int modIndex = typeName.indexOf('(');
+			if (modIndex == -1) {
+				break;
+			}
+			int modEnd = typeName.indexOf(')', modIndex);
+			if (modEnd == -1) {
+				break;
+			}
+			typeName = typeName.substring(0, modIndex)
+					+ (modEnd == typeName.length() - 1 ? "" : typeName.substring(modEnd + 1));
+		}
+		return typeName;
+	}
 
+	@NotNull
+	@Override
+	public DBSObjectState getObjectState() {
+		return DBSObjectState.NORMAL;
+	}
 
-    private class AttributeCache extends JDBCObjectCache<OracleDataType, OracleDataTypeAttribute> {
-        @NotNull
-        @Override
-        protected JDBCStatement prepareObjectsStatement(@NotNull JDBCSession session, @NotNull OracleDataType owner) throws SQLException
-        {
-            final JDBCPreparedStatement dbStat = session.prepareStatement(
-                "SELECT * FROM "+ OracleUtils.getSysSchemaPrefix(getDataSource()) + "ALL_TYPE_ATTRS " +
-                "WHERE OWNER=? AND TYPE_NAME=? ORDER BY ATTR_NO");
-            dbStat.setString(1, OracleDataType.this.parent.getName());
-            dbStat.setString(2, getName());
-            return dbStat;
-        }
-        @Override
-        protected OracleDataTypeAttribute fetchObject(@NotNull JDBCSession session, @NotNull OracleDataType owner, @NotNull JDBCResultSet resultSet) throws SQLException, DBException
-        {
-            return new OracleDataTypeAttribute(session.getProgressMonitor(), OracleDataType.this, resultSet);
-        }
-    }
+	@Override
+	public void refreshObjectState(@NotNull DBRProgressMonitor monitor) throws DBCException {
 
-    public class MethodCache extends JDBCObjectCache<OracleDataType, OracleDataTypeMethod> {
-        @NotNull
-        @Override
-        protected JDBCStatement prepareObjectsStatement(@NotNull JDBCSession session, @NotNull OracleDataType owner) throws SQLException
-        {
-            final JDBCPreparedStatement dbStat = session.prepareStatement(
-                "SELECT m.*,r.RESULT_TYPE_OWNER,RESULT_TYPE_NAME,RESULT_TYPE_MOD\n" +
-                "FROM "+ OracleUtils.getSysSchemaPrefix(getDataSource()) + "ALL_TYPE_METHODS m\n" +
-                "LEFT OUTER JOIN "+ OracleUtils.getSysSchemaPrefix(getDataSource()) + "ALL_METHOD_RESULTS r ON r.OWNER=m.OWNER AND r.TYPE_NAME=m.TYPE_NAME AND r.METHOD_NAME=m.METHOD_NAME AND r.METHOD_NO=m.METHOD_NO\n" +
-                "WHERE m.OWNER=? AND m.TYPE_NAME=?\n" +
-                "ORDER BY m.METHOD_NO");
-            dbStat.setString(1, OracleDataType.this.parent.getName());
-            dbStat.setString(2, getName());
-            return dbStat;
-        }
+	}
 
-        @Override
-        protected OracleDataTypeMethod fetchObject(@NotNull JDBCSession session, @NotNull OracleDataType owner, @NotNull JDBCResultSet resultSet) throws SQLException, DBException
-        {
-            return new OracleDataTypeMethod(session.getProgressMonitor(), OracleDataType.this, resultSet);
-        }
-    }
+	@Override
+	public DBPImage getObjectImage() {
+		if (OracleConstants.TYPE_NAME_JSON.equals(getName())) {
+			return DBIcon.TYPE_JSON;
+		}
+		return null;
+	}
+
+	private class AttributeCache extends JDBCObjectCache<OracleDataType, OracleDataTypeAttribute> {
+		@NotNull
+		@Override
+		protected JDBCStatement prepareObjectsStatement(@NotNull JDBCSession session, @NotNull OracleDataType owner)
+				throws SQLException {
+			final JDBCPreparedStatement dbStat = session
+					.prepareStatement("SELECT * FROM " + OracleUtils.getSysSchemaPrefix(getDataSource())
+							+ "ALL_TYPE_ATTRS " + "WHERE OWNER=? AND TYPE_NAME=? ORDER BY ATTR_NO");
+			dbStat.setString(1, OracleDataType.this.parent.getName());
+			dbStat.setString(2, getName());
+			return dbStat;
+		}
+
+		@Override
+		protected OracleDataTypeAttribute fetchObject(@NotNull JDBCSession session, @NotNull OracleDataType owner,
+				@NotNull JDBCResultSet resultSet) throws SQLException, DBException {
+			return new OracleDataTypeAttribute(session.getProgressMonitor(), OracleDataType.this, resultSet);
+		}
+	}
+
+	public class MethodCache extends JDBCObjectCache<OracleDataType, OracleDataTypeMethod> {
+		@NotNull
+		@Override
+		protected JDBCStatement prepareObjectsStatement(@NotNull JDBCSession session, @NotNull OracleDataType owner)
+				throws SQLException {
+			final JDBCPreparedStatement dbStat = session
+					.prepareStatement("SELECT m.*,r.RESULT_TYPE_OWNER,RESULT_TYPE_NAME,RESULT_TYPE_MOD\n" + "FROM "
+							+ OracleUtils.getSysSchemaPrefix(getDataSource()) + "ALL_TYPE_METHODS m\n"
+							+ "LEFT OUTER JOIN " + OracleUtils.getSysSchemaPrefix(getDataSource())
+							+ "ALL_METHOD_RESULTS r ON r.OWNER=m.OWNER AND r.TYPE_NAME=m.TYPE_NAME AND r.METHOD_NAME=m.METHOD_NAME AND r.METHOD_NO=m.METHOD_NO\n"
+							+ "WHERE m.OWNER=? AND m.TYPE_NAME=?\n" + "ORDER BY m.METHOD_NO");
+			dbStat.setString(1, OracleDataType.this.parent.getName());
+			dbStat.setString(2, getName());
+			return dbStat;
+		}
+
+		@Override
+		protected OracleDataTypeMethod fetchObject(@NotNull JDBCSession session, @NotNull OracleDataType owner,
+				@NotNull JDBCResultSet resultSet) throws SQLException, DBException {
+			return new OracleDataTypeMethod(session.getProgressMonitor(), OracleDataType.this, resultSet);
+		}
+	}
 
 }

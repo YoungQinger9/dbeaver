@@ -46,6 +46,14 @@ public enum OracleObjectType implements DBSObjectType {
             return schema.getProceduresCache().getObject(monitor, schema, objectName);
         }
     }),
+	UDF("UDF", DBIcon.TREE_PROCEDURE, OracleProcedureStandalone.class, new ObjectFinder() {
+        @Override
+        public OracleProcedureStandalone findObject(DBRProgressMonitor monitor, OracleSchema schema, String objectName) throws DBException
+        {
+        	// YashanDB UDF is same as function
+            return schema.getProceduresCache().getObject(monitor, schema, objectName);
+        }
+    }),
 	INDEX("INDEX", DBIcon.TREE_INDEX, OracleTableIndex.class, new ObjectFinder() {
         @Override
         public OracleTableIndex findObject(DBRProgressMonitor monitor, OracleSchema schema, String objectName) throws DBException

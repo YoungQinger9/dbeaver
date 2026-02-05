@@ -54,7 +54,7 @@ public abstract class OracleTableBase extends JDBCTable<OracleDataSource, Oracle
     private static final Log log = Log.getLog(OracleTableBase.class);
 
     public static class TableAdditionalInfo {
-        volatile boolean loaded = false;
+        public volatile boolean loaded = false;
 
         boolean isLoaded() { return loaded; }
     }
