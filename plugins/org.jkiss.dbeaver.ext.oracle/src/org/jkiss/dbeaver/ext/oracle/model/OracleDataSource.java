@@ -575,7 +575,7 @@ public class OracleDataSource extends JDBCDataSource implements DBPObjectStatist
                     dtList.add(dataType);
                 }
             }
-            this.dataTypeCache.setCache(dtList);
+            getDataTypeCache().setCache(dtList);
         }
     }
 
